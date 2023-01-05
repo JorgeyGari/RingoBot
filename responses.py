@@ -31,5 +31,8 @@ def handle_response(message) -> str or None:
                     ans = ans + ' ' + i
                 return ans + ", gilipollas de mierda."
 
+    if p_message.endswith('tu puta madre'):
+        return 'La tuya, que es más capulla.'
+
     else:
         return None

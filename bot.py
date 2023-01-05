@@ -4,9 +4,12 @@ from discord import app_commands
 import responses
 import dice
 import characters
+import tienda
 
 
 def character_setup() -> dict:
+    """Crea los entrenadores y les añade sus habilidades, devuelve un diccionario que los asigna a sus jugadores."""
+
     lana = characters.Trainer('Lana')
     lana.add_ability('engañar', 4)
     lana.add_ability('investigar', 3)
@@ -71,6 +74,7 @@ def run_discord_bot():
     @client.event
     async def on_ready():
         print(f'{client.user} se ha conectado a Discord.')
+        await client.change_presence(activity=discord.Game(name='!ayuda'))
         await tree.sync(guild=discord.Object(id=429400823395647489))
 
     @client.event
@@ -117,7 +121,7 @@ def run_discord_bot():
         player = character_setup()
         trainer = player[str(interaction.user)]
         nombre = nombre.lower()
-        if nombre not in trainer.abilities:
+        if nombre not in trainer.moves:
             await interaction.response.send_message(f"¡{trainer.name} no tiene habilidades de {nombre}!")
             return
 
@@ -125,12 +129,20 @@ def run_discord_bot():
 
         message = f"¡{trainer.name} ha usado sus habilidades de {nombre}!\n" \
                   f"```{roll}\nTOTAL: {dice.total_roll(roll)}"
-        if trainer.abilities[nombre] != 0:
-            message += f" + {trainer.abilities[nombre]} = " \
-                       f"{dice.total_roll(roll) + trainer.abilities[nombre]}```"
+        if trainer.moves[nombre] != 0:
+            message += f" + {trainer.moves[nombre]} = " \
+                       f"{dice.total_roll(roll) + trainer.moves[nombre]}```"
         else:
             message += '```'
 
         await interaction.response.send_message(message)
+
+    @tree.command(name="tienda", description="Interactuar con la tienda de objetos", guild=discord.Object(id=429400823395647489))
+    async def shop(interaction: discord.Interaction, compra: str = None):
+        if compra is None:
+            await interaction.response.send_message(tienda.inventory())
+            return
+
+        await interaction.response.send_message(tienda.buy(compra))
 
     client.run(TOKEN)
