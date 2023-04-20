@@ -34,5 +34,22 @@ def handle_response(message) -> str or None:
     if p_message.endswith('tu puta madre'):
         return 'La tuya, que es más capulla.'
 
+    if p_message.startswith('buenas noches'):
+        return '¡Buenas noches!'
+
+    if 'ringobot' in p_message:
+        return '¿Qué? ¿Me has llamado?'
+
+    if 'me mato' in p_message \
+        or 'me suicido' in p_message \
+        or 'quiero morir' in p_message \
+        or 'quiero matarme' in p_message \
+        or 'me voy a matar' in p_message \
+        or 'me voy a suicidar' in p_message \
+        or 'suicidarme' in p_message \
+        or 'me mataré' in p_message \
+        or 'me quiero matar' in p_message:
+        return '**Teléfono de prevención del suicidio: 024**'
+
     else:
         return None
