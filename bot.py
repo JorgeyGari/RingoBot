@@ -137,7 +137,8 @@ def run_discord_bot():
 
         await interaction.response.send_message(message)
 
-    @tree.command(name="tienda", description="Interactuar con la tienda de objetos", guild=discord.Object(id=429400823395647489))
+    @tree.command(name="tienda", description="Interactuar con la tienda de objetos",
+                  guild=discord.Object(id=429400823395647489))
     async def shop(interaction: discord.Interaction, compra: str = None):
         if compra is None:
             await interaction.response.send_message(tienda.inventory())
