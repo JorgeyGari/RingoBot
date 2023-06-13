@@ -1,2 +1,7 @@
 .env
 venv
+*.xml
+*.iml
+*.pyc
+.idea
+*.json

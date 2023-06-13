@@ -48,8 +48,10 @@ def handle_response(message) -> str or None:
         or 'me voy a suicidar' in p_message \
         or 'suicidarme' in p_message \
         or 'me mataré' in p_message \
-        or 'me quiero matar' in p_message:
+        or 'me quiero matar' in p_message \
+        or 'me quiero suicidar' in p_message \
+        or 'me suicidaré' in p_message:
         return '**Teléfono de prevención del suicidio: 024**'
 
     else:
-        return None
+        return None # type: ignore

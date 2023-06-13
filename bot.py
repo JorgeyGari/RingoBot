@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 
-import responses
+import replies
 import dice
 import characters
 import tienda
@@ -54,12 +54,17 @@ def character_setup() -> dict:
 
     return player
 
+async def emoji_reaction(message, emoji):
+    try:
+        await message.add_reaction(emoji)
+    except Exception as e:
+        print(e)
 
 async def send_message(message, user_message, is_private):
     try:
-        response = responses.handle_response(user_message)
-        if response is not None:
-            await message.author.send(response) if is_private else await message.channel.send(response)
+        reply = replies.handle_response(user_message)
+        if reply is not None:
+            await message.author.send(reply) if is_private else await message.channel.send(reply)
     except Exception as e:
         print(e)
 
@@ -96,6 +101,9 @@ def run_discord_bot():
             await send_message(message, user_message, is_private=True)
         else:
             await send_message(message, user_message, is_private=False)
+        
+        if "trans rights" in user_message.lower():
+            await emoji_reaction(message, '🏳️‍⚧️')
 
     @tree.command(name="roll", description="Tirar dados", guild=discord.Object(id=429400823395647489))
     async def roll_dice(interaction: discord.Interaction, dado: str, modificador: int = 0):
