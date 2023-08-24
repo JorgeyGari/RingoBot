@@ -1,157 +1,60 @@
 import discord
-from discord import app_commands
+from discord import option
+import os
+from dotenv import load_dotenv
 
 import replies
 import dice
-import characters
-import tienda
 
+intents = discord.Intents.all()
 
-def character_setup() -> dict:
-    """Crea los entrenadores y les añade sus habilidades, devuelve un diccionario que los asigna a sus jugadores."""
+load_dotenv()
+bot = discord.Bot(debug_guilds=[429400823395647489], intents=intents)
 
-    lana = characters.Trainer('Lana')
-    lana.add_ability('engañar', 4)
-    lana.add_ability('investigar', 3)
-    lana.add_ability('atletismo', 3)
-    lana.add_ability('saber', 2)
-    lana.add_ability('sigilo', 2)
-    lana.add_ability('carisma', 2)
-    lana.add_ability('voluntad', 1)
-    lana.add_ability('percepción', 1)
-    lana.add_ability('conocimientos', 1)
-    lana.add_ability('físico', 1)
+@bot.event
+async def on_ready():
+    print(f"¡{bot.user} se ha conectado!")
 
-    kai = characters.Trainer('Kai')
-    kai.add_ability('conocimientos', 4)
-    kai.add_ability('físico', 3)
-    kai.add_ability('percepción', 3)
-    kai.add_ability('pelea', 2)
-    kai.add_ability('atletismo', 2)
-    kai.add_ability('voluntad', 2)
-    kai.add_ability('empatía', 1)
-    kai.add_ability('investigar', 1)
-    kai.add_ability('pelea', 1)
-    kai.add_ability('lanzar', 1)
+@bot.event
+async def on_message(message: discord.Message):
+    if message.author.id == bot.user.id:
+        return
 
-    vivi = characters.Trainer('Vivi')
-    vivi.add_ability('carisma', 4)
-    vivi.add_ability('engañar', 3)
-    vivi.add_ability('atletismo', 3)
-    vivi.add_ability('físico', 2)
-    vivi.add_ability('pelea', 2)
-    vivi.add_ability('sigilo', 2)
-    vivi.add_ability('empatía', 1)
-    vivi.add_ability('recursos', 1)
-    vivi.add_ability('percepción', 1)
-    vivi.add_ability('investigar', 1)
+    else:
+        print(f"{message.author} en #{message.channel}: {message.content}")
+        if message.content.startswith('$'):
+            msg = message.content[1:]
+            reply = replies.handler(msg)
+            if reply:
+                await message.author.send(reply)
+        reply = replies.handler(message.content)
+        if reply:
+            await message.reply(reply, mention_author=True)
 
-    player = {
-        'Zen#1641': lana,
-        'Niter#1675': kai,
-        'Luc#5307': vivi
-    }
-
-    return player
-
+@bot.event
 async def emoji_reaction(message, emoji):
     try:
         await message.add_reaction(emoji)
     except Exception as e:
         print(e)
 
-async def send_message(message, user_message, is_private):
-    try:
-        reply = replies.handle_response(user_message)
-        if reply is not None:
-            await message.author.send(reply) if is_private else await message.channel.send(reply)
-    except Exception as e:
-        print(e)
+@bot.slash_command()
+@option("dados", description="Cantidad y tipo de dado a tirar. Por ejemplo, \"2d6\", \"1d20\" o \"4df\".")
+@option("modificador", description="Modificador a aplicar a la tirada. Por ejemplo, \"+2\" o \"-1\".",
+        default=0, required=False)
+async def dado(
+    ctx: discord.ApplicationContext,
+    dados: str,
+    modificador: int
+):
+    """Tirar dados."""
+    if dice.invalid(dados):
+        await ctx.respond(dice.invalid(dados), ephemeral=True)
+        return
+    roll = dice.roll_dice(dados)
+    total_roll = dice.total_roll(roll) + modificador
+    await ctx.respond(f"¡Has tirado {dice.human_read(dados)}!\n"
+                      f"`{roll}`\n"
+                      f"**Total:** {total_roll}")
 
-
-def run_discord_bot():
-    TOKEN = 'MTA1OTE1NDA4MjgxNzkxNzA0OQ.GtNZPu.u91NUr1KasPyrs-ZMtAYzDTy_CHrQYpzaGwzME'
-    client = discord.Client(intents=discord.Intents.all())
-    tree = app_commands.CommandTree(client)
-
-    character_setup()
-
-    @client.event
-    async def on_ready():
-        print(f'{client.user} se ha conectado a Discord.')
-        await client.change_presence(activity=discord.Game(name='!ayuda'))
-        await tree.sync(guild=discord.Object(id=429400823395647489))
-
-    @client.event
-    async def on_message(message):
-        if message.author == client.user:
-            return
-
-        username = str(message.author)
-        user_message = str(message.content)
-        channel = str(message.channel)
-
-        print(f'{username} ha enviado un mensaje en #{channel}: {user_message}')
-
-        if user_message.startswith('!ayuda'):
-            user_message = '$' + user_message
-
-        if user_message[0] == '$':
-            user_message = user_message[1:]
-            await send_message(message, user_message, is_private=True)
-        else:
-            await send_message(message, user_message, is_private=False)
-        
-        if "trans rights" in user_message.lower():
-            await emoji_reaction(message, '🏳️‍⚧️')
-
-    @tree.command(name="roll", description="Tirar dados", guild=discord.Object(id=429400823395647489))
-    async def roll_dice(interaction: discord.Interaction, dado: str, modificador: int = 0):
-        if dice.invalid(dado):
-            err_msg = dice.invalid(dado)
-            await interaction.response.send_message(err_msg)
-            return
-
-        roll = dice.roll_dice(dado)
-
-        message = f"¡{interaction.user} ha tirado {dice.human_read(dado)}!\n" \
-                  f"```{roll}\nTOTAL: {dice.total_roll(roll)}"
-        if modificador != 0:
-            message += f" + {modificador} = {dice.total_roll(roll) + modificador}```"
-        else:
-            message += '```'
-
-        await interaction.response.send_message(message)
-
-    @tree.command(name="habilidad", description="Usar una habilidad de tu personaje",
-                  guild=discord.Object(id=429400823395647489))
-    async def use_ability(interaction: discord.Interaction, nombre: str):
-        player = character_setup()
-        trainer = player[str(interaction.user)]
-        nombre = nombre.lower()
-        if nombre not in trainer.moves:
-            await interaction.response.send_message(f"¡{trainer.name} no tiene habilidades de {nombre}!")
-            return
-
-        roll = dice.roll_dice('4df')
-
-        message = f"¡{trainer.name} ha usado sus habilidades de {nombre}!\n" \
-                  f"```{roll}\nTOTAL: {dice.total_roll(roll)}"
-        if trainer.moves[nombre] != 0:
-            message += f" + {trainer.moves[nombre]} = " \
-                       f"{dice.total_roll(roll) + trainer.moves[nombre]}```"
-        else:
-            message += '```'
-
-        await interaction.response.send_message(message)
-
-    @tree.command(name="tienda", description="Interactuar con la tienda de objetos",
-                  guild=discord.Object(id=429400823395647489))
-    async def shop(interaction: discord.Interaction, compra: str = None):
-        if compra is None:
-            await interaction.response.send_message(tienda.inventory())
-            return
-
-        await interaction.response.send_message(tienda.buy(compra))
-
-    client.run(TOKEN)
+bot.run(os.getenv('TOKEN'))

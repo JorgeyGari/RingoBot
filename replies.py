@@ -1,7 +1,7 @@
 import random
 
 
-def handle_response(message) -> str or None:
+def handler(message) -> str or None:
     p_message = message.lower()
 
     if p_message.startswith('hola'):
