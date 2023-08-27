@@ -274,6 +274,9 @@ def take_path(player: str, choice: str):
     depth_col = 2
     data = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=zone_range).execute()
     values = data.get('values', [])
+    if choice == '↩️ Volver':
+        update_player_location(player, room, current_path[:-1])
+        return f'Volviste al lugar anterior.'
     if not values:
         print('No data found.')
     else:
