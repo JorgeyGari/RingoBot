@@ -53,4 +53,4 @@ def total_roll(roll) -> int:
     """Devuelve la suma de los dados tirados."""
 
     fate_values = {'-': -1, '·': 0, '+': 1}
-    return sum([fate_values[dice] if dice in fate_values else dice for dice in roll])
+    return int(sum([fate_values[dice] if dice in fate_values else dice for dice in roll]))
