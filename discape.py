@@ -287,3 +287,5 @@ def take_path(player: str, choice: str):
                 else:
                     unlock_item(room, choice)
                 return row[1]
+
+print(get_column_values('Personajes', 'B'))

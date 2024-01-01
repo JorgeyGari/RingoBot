@@ -5,3 +5,6 @@ venv
 *.pyc
 .idea
 *.json
+_trial_temp/
+__pycache__/
+rooms/*

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import replies
 import dice
 import discape
+import discape_xl
 
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
@@ -77,6 +78,15 @@ async def dado(
 
 escape = bot.create_group("escape", "Comandos para juegos de sala de huida")
 
+@escape.command(name="iniciar", description="Inicia una partida de sala de huida.")
+@option("archivo", description="Archivo de sala de huida.", required=True)
+async def iniciar(ctx: discord.ApplicationContext, archivo: discord.Attachment):
+    """Inicia una partida de sala de huida."""
+    # Save the file
+    await archivo.save('file.xlsx')
+    # Check if the file is valid
+    return await ctx.respond(discape_xl.check_valid_format())
+
 @escape.command(name="tirada", description="Tira un dado de 20 caras y suma tu bonificación de la característica elegida.")
 @option("característica", description="Característica a tirar.", choices=["Fuerza", "Resistencia", "Agilidad", "Inteligencia", "Suerte"], required=True)
 async def tirada(ctx: discord.ApplicationContext, característica: str):
@@ -94,7 +104,6 @@ async def tirada(ctx: discord.ApplicationContext, característica: str):
 async def get_investigation_options(ctx: discord.AutocompleteContext):
     room, path = discape.get_player_location(ctx.interaction.user.name)
     return discape.get_zones(ctx.interaction.user.name) + (['↩️ Volver'] if room and path else [])
-
 
 @escape.command(name="investigar", description="Investiga en la sala de huida.")
 @option(
