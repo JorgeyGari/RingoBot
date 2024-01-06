@@ -8,3 +8,5 @@ venv
 _trial_temp/
 __pycache__/
 rooms/*
+.venv/
+file.xslx
