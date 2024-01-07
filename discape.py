@@ -22,7 +22,7 @@ def get_row_values(sheet_name: str, row: int) -> list[str]:
     return [cell.value for cell in ws[row]]
 
 
-def remove_row(sheet_name: str, row: int):
+def remove_row(sheet_name: str, row: int) -> None:
     """Removes the specified row from the specified sheet."""
     ws = wb[sheet_name]
     ws.delete_rows(row)
@@ -192,7 +192,6 @@ def combine(item1: str, item2: str) -> str:  # TODO: This is not finished
             remove_item(item2)
             return "Has combinado los objetos y has obtenido un nuevo objeto."
     return "No puedes combinar esos objetos."
-        
 
 
 def unlock_item(room: str, item: str) -> str:
@@ -206,7 +205,7 @@ def unlock_item(room: str, item: str) -> str:
     wb.save(file)
 
 
-def take_path(player: str, choice: str):
+def take_path(player: str, choice: str) -> str:
     """Moves the player to the specified path or adds the item to the inventory.
     Returns the description of the new room or the description of the item."""
     (room, path) = get_player_location(player)
@@ -230,6 +229,8 @@ def take_path(player: str, choice: str):
         if (
             row[depth_col].value == path and row[name_col].value == choice
         ):  # Found the choice
+            if row[path_col].value == "Final":
+                return escaped(room)
             if row[path_col].value == "Objeto":
                 return unlock_item(room, choice)
             else:
@@ -239,6 +240,15 @@ def take_path(player: str, choice: str):
                     update_player_location(player, room, row[path_col].value)
             wb.save(file)
             return row[1].value
+
+
+def escaped(room: str) -> str:
+    """Returns the description of the room and removes the player from the game."""
+    ws = wb["Personajes"]
+    for row in ws:
+        if row[CHAR_ROOM_COL].value == room:
+            ws.cell(row=row[CHAR_NAME_COL].row, column=CHAR_ROOM_COL + 1).value = None
+    wb.save(file)
 
 
 # # TESTS
