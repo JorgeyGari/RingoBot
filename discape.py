@@ -127,7 +127,6 @@ def unlock_zone(player: str, item: str) -> str or None:
             row[key_col].value = None
             wb.save(file)
             return row[act_col].value
-        # TODO: Test this in the actual game
 
 
 def add_item(new_data: list[str]) -> None:
@@ -136,7 +135,13 @@ def add_item(new_data: list[str]) -> None:
     append_row("Inventario", new_data)
 
 
-def get_inventory() -> list[str]:
+def get_inventory_dict() -> dict[str, str]:
+    """Returns a dictionary with the item's name as the key and the item's description as the value."""
+    ws = wb["Inventario"]
+    return {row[0].value: row[1].value for row in ws.iter_rows(min_row=2)}
+
+
+def get_inventory_names() -> list[str]:
     """Returns a list with the names of the items in the inventory."""
     ws = wb["Inventario"]
     return [row[0].value for row in ws][1:]
@@ -149,7 +154,7 @@ def equip(player, item) -> str:
     player_column = CHAR_USER_COL
     hand_column = CHAR_HAND_COL
     player_row = get_column_values(sheet_name, player_column).index(player)
-    if item in get_inventory():
+    if item in get_inventory_names():
         ws.cell(row=player_row + 1, column=hand_column + 1, value=item)
         wb.save(file)
         return f"Equipaste: {item}."
@@ -240,3 +245,4 @@ def take_path(player: str, choice: str):
 # update_player_location("reimeko", "Sala de prueba", "A")
 # print("success")
 # unlock_zone("reimeko", "Antorcha")
+# print(get_inventory_dict())

@@ -14,6 +14,27 @@ load_dotenv()
 bot = discord.Bot(debug_guilds=[429400823395647489], intents=intents)
 
 
+class PaginationView(discord.ui.View):
+    def __init__(self, embeds):
+        super().__init__()
+        self.embeds = embeds
+        self.current = 0
+
+    @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
+    async def previous_page(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        self.current = (self.current - 1) % len(self.embeds)
+        await interaction.response.edit_message(embed=self.embeds[self.current])
+
+    @discord.ui.button(label="➡️", style=discord.ButtonStyle.blurple)
+    async def next_page(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        self.current = (self.current + 1) % len(self.embeds)
+        await interaction.response.edit_message(embed=self.embeds[self.current])
+
+
 @bot.event
 async def on_ready():
     print(f"¡{bot.user} se ha conectado!")
@@ -76,9 +97,7 @@ escape = bot.create_group("escape", "Comandos para juegos de sala de huida")
 @option("archivo", description="Archivo de sala de huida.", required=True)
 async def iniciar(ctx: discord.ApplicationContext, archivo: discord.Attachment):
     """Inicia una partida de sala de huida."""
-    # Save the file
     await archivo.save("file.xlsx")
-    # Check if the file is valid
     return await ctx.respond("Archivo cargado.")
 
 
@@ -125,12 +144,21 @@ async def investigate(ctx: discord.ApplicationContext, objetivo: str):
 @escape.command(name="objetos", description="Muestra los objetos de tu inventario.")
 async def inventory(ctx: discord.ApplicationContext):
     """Muestra los objetos de tu inventario."""
-    await ctx.respond(
-        discape.get_inventory(), ephemeral=True
-    )  # TODO: Make it embed, like when showing different pictures of a character in Mudae
+    inventory = discape.get_inventory_dict()
+    embeds = []
+    for item in inventory:
+        embed = discord.Embed(title=item, description=inventory[item])
+        embeds.append(embed)
+    if embeds:
+        view = PaginationView(embeds)
+        await ctx.respond(embed=embeds[0], view=view, ephemeral=True)
+    else:
+        await ctx.respond("No tienes ningún objeto.", ephemeral=True)
+
 
 async def get_equipable_items(ctx: discord.AutocompleteContext):
-    return discape.get_inventory()
+    return discape.get_inventory_names()
+
 
 @escape.command(name="equipar", description="Equipar un objeto.")
 @option(
@@ -141,5 +169,6 @@ async def get_equipable_items(ctx: discord.AutocompleteContext):
 async def equip(ctx: discord.ApplicationContext, objeto: str):
     """Equipar un objeto."""
     await ctx.respond(discape.equip(ctx.interaction.user.name, objeto))
+
 
 bot.run(os.getenv("TOKEN"))
