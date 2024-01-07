@@ -14,7 +14,7 @@ El programa toma como única entrada un archivo `.xlsx` con los datos que requie
 
 * Un libro de Excel es la manera más conocida de visualizar datos en un formato similar a una base de datos
 * Excel solo requiere un nivel básico de conocimientos informáticos
-* Una base de datos requiere un proveedor, pero un archivo `.xslx` solo requiere de una herramienta de ofimática que la mayoría de usuarios ya tiene descargada en su equipo
+* Una base de datos requiere un proveedor, pero un archivo `.xlsx` solo requiere de una herramienta de ofimática que la mayoría de usuarios ya tiene descargada en su equipo
 
 El archivo puede ser cargado mediante un comando solo accesible a un administrador.
 
