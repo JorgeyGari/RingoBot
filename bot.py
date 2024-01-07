@@ -122,4 +122,24 @@ async def investigate(ctx: discord.ApplicationContext, objetivo: str):
     await ctx.respond(discape.take_path(ctx.interaction.user.name, objetivo))
 
 
+@escape.command(name="objetos", description="Muestra los objetos de tu inventario.")
+async def inventory(ctx: discord.ApplicationContext):
+    """Muestra los objetos de tu inventario."""
+    await ctx.respond(
+        discape.get_inventory(), ephemeral=True
+    )  # TODO: Make it embed, like when showing different pictures of a character in Mudae
+
+async def get_equipable_items(ctx: discord.AutocompleteContext):
+    return discape.get_inventory()
+
+@escape.command(name="equipar", description="Equipar un objeto.")
+@option(
+    "objeto",
+    description="¿Qué objeto quieres equipar?",
+    autocomplete=discord.utils.basic_autocomplete(get_equipable_items),
+)
+async def equip(ctx: discord.ApplicationContext, objeto: str):
+    """Equipar un objeto."""
+    await ctx.respond(discape.equip(ctx.interaction.user.name, objeto))
+
 bot.run(os.getenv("TOKEN"))
