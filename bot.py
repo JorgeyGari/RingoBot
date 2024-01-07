@@ -20,19 +20,25 @@ class PaginationView(discord.ui.View):
         self.embeds = embeds
         self.current = 0
 
+    async def update_page(self, interaction: discord.Interaction):
+        self.embeds[self.current].set_footer(
+            text=f"Página {self.current + 1} de {len(self.embeds)}"
+        )
+        await interaction.response.edit_message(embed=self.embeds[self.current])
+
     @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
     async def previous_page(
         self, button: discord.ui.Button, interaction: discord.Interaction
     ):
         self.current = (self.current - 1) % len(self.embeds)
-        await interaction.response.edit_message(embed=self.embeds[self.current])
+        await self.update_page(interaction)
 
     @discord.ui.button(label="➡️", style=discord.ButtonStyle.blurple)
     async def next_page(
         self, button: discord.ui.Button, interaction: discord.Interaction
     ):
         self.current = (self.current + 1) % len(self.embeds)
-        await interaction.response.edit_message(embed=self.embeds[self.current])
+        await self.update_page(interaction)
 
 
 @bot.event
@@ -169,6 +175,22 @@ async def get_equipable_items(ctx: discord.AutocompleteContext):
 async def equip(ctx: discord.ApplicationContext, objeto: str):
     """Equipar un objeto."""
     await ctx.respond(discape.equip(ctx.interaction.user.name, objeto))
+
+
+@escape.command(name="combinar", description="Combina dos objetos.")
+@option(
+    "objeto1",
+    description="¿Qué objeto quieres combinar?",
+    autocomplete=discord.utils.basic_autocomplete(get_equipable_items),
+)
+@option(
+    "objeto2",
+    description="¿Con qué objeto quieres combinarlo?",
+    autocomplete=discord.utils.basic_autocomplete(get_equipable_items),
+)
+async def combine(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
+    """Combina dos objetos."""
+    await ctx.respond(discape.combine(objeto1, objeto2))
 
 
 bot.run(os.getenv("TOKEN"))
