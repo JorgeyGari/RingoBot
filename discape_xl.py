@@ -5,6 +5,12 @@ file = 'file.xlsx'
 
 wb = load_workbook(filename=file)
 
+CHAR_NAME_COL = 0
+CHAR_USER_COL = 1
+CHAR_ROOM_COL = 2
+CHAR_PATH_COL = 3
+CHAR_HAND_COL = 4
+
 def check_valid_format() -> bool:
     """Checks if the loaded file has the correct format."""
     wb = load_workbook(filename=file)
@@ -38,17 +44,15 @@ def append_row(sheet_name: str, row_values: list):
 
 def get_stat(player: str, stat: str) -> int:
     """Returns the value of the specified stat for the specified player."""
-    # TODO: Get the stat column automatically (they start at column F/5)
-    ws = wb['Personajes']
     sheet_name = 'Personajes'
-    player_column = 1
-    stat_col = {
-        'Fuerza': 3,
-        'Resistencia': 4,
-        'Agilidad': 5,
-        'Inteligencia': 6,
-        'Suerte': 7
-    }
+    ws = wb[sheet_name]
+    player_column = CHAR_USER_COL
+
+    # Get the name of the stats and their column number
+    stat_col = {}
+    for i in range(5, ws.max_column + 1):
+        stat_col[ws.cell(row=1, column=i).value] = i
+
     player_row = get_column_values(sheet_name, player_column).index(player) + 1
     return ws.cell(row=player_row, column=stat_col[stat]).value
 
@@ -56,20 +60,23 @@ def get_player_location(player: str) -> tuple[str, str]:
     """Returns the location of the specified player as a tuple containing the name of the room and the path taken."""
     ws = wb['Personajes']
     sheet_name = 'Personajes'
-    player_column = 1
-    location_column = 8
-    player_row = get_column_values(sheet_name, player_column).index(player) + 1
-    return ws.cell(row=player_row, column=location_column).value, ws.cell(row=player_row, column=location_column + 1).value
+    player_column = CHAR_USER_COL
+    location_column = CHAR_ROOM_COL
+    path_column = CHAR_PATH_COL
+    player_column_values = get_column_values(sheet_name, player_column)
+    player_row = player_column_values.index(player)
+    return ws.cell(row=player_row + 1, column=location_column + 1).value, ws.cell(row=player_row, column=path_column + 1).value
 
-def update_player_location(player: str, location: str, path: str):
+def update_player_location(player: str, location: str, path: str) -> None:
     """Updates the location of the specified player."""
     ws = wb['Personajes']
     sheet_name = 'Personajes'
-    player_column = 1
-    location_column = 8
+    player_column = CHAR_USER_COL
+    location_column = CHAR_ROOM_COL
+    path_column = CHAR_PATH_COL
     player_row = get_column_values(sheet_name, player_column).index(player) + 1
-    ws.cell(row=player_row, column=location_column, value=location)
-    ws.cell(row=player_row, column=location_column + 1, value=path)
+    ws.cell(row=player_row, column=location_column + 1, value=location)
+    ws.cell(row=player_row, column=path_column + 1, value=path)
     wb.save(file)
 
 def get_zones(player: str) -> list[str]:
@@ -77,10 +84,12 @@ def get_zones(player: str) -> list[str]:
     (room, path) = get_player_location(player)
     sheet_name = room
     ws = wb[sheet_name]
-    depth_col = 2   # FIXME: This could be found automatically some other way, probably
+    depth_col = 2
+    key_col = 4
+
     zones = []
     for row in ws:
-        if row[depth_col].value == path and (row[4] == '' or len(row) < 5):
+        if row[depth_col].value == path and row[key_col].value == None:
             zones.append(row[0].value)
     return zones
 
@@ -89,7 +98,8 @@ def unlock_zone(player: str, item: str) -> None:
     (room, path) = get_player_location(player)
     sheet_name = room
     ws = wb[sheet_name]
-    depth_col = 2   # FIXME: This could be found automatically some other way, probably
+    depth_col = 2
+
     for row in ws:
         if len(row) >= 5:
             if row[depth_col] == path and row[4] == item:
@@ -143,8 +153,12 @@ def take_path(player: str, choice: str):
              wb.save(file)
              return row[1].value
 
-print(get_column_values('Personajes', 1))
-data = get_row_values('Personajes', 2)
-append_row('Personajes', data)
-print(get_column_values('Personajes', 1))
-print(get_stat('jorgeygari', 'Fuerza'))
+# print(get_column_values('Personajes', 1))
+# data = get_row_values('Personajes', 2)
+# append_row('Personajes', data)
+# print(get_column_values('Personajes', 1))
+# remove_row('Personajes', 4)
+# print(get_column_values('Personajes', 1))
+# print(get_stat('reimeko', 'Suerte'))
+# update_player_location('reimeko', 'Sala de prueba', 'A')
+print(get_zones('reimeko'))

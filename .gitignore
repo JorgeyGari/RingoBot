@@ -9,4 +9,4 @@ _trial_temp/
 __pycache__/
 rooms/*
 .venv/
-file.xslx
+file.xlsx
