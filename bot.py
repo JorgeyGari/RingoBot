@@ -192,5 +192,10 @@ async def combine(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
     """Combina dos objetos."""
     await ctx.respond(discape.combine(objeto1, objeto2))
 
+@escape.command(name="unirse", description="Unirse a una partida de sala de huida.")
+async def join(ctx: discord.ApplicationContext):
+    """Unirse a una partida de sala de huida."""
+    await ctx.respond(discape.join_room(ctx.interaction.user.name, ctx.interaction.channel.name))
+
 
 bot.run(os.getenv("TOKEN"))

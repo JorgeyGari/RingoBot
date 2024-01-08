@@ -249,6 +249,17 @@ def escaped(room: str) -> str:
         if row[CHAR_ROOM_COL].value == room:
             ws.cell(row=row[CHAR_NAME_COL].row, column=CHAR_ROOM_COL + 1).value = None
     wb.save(file)
+    return "**Has escapado.**"
+
+
+def join_room(player: str, room: str) -> str:
+    """Adds the player to the specified room and returns the description of the room."""
+    ws = wb["Personajes"]
+    for row in ws:
+        if row[CHAR_USER_COL].value == player:
+            ws.cell(row=row[CHAR_NAME_COL].row, column=CHAR_ROOM_COL + 1).value = room
+    wb.save(file)
+    return f"Te has unido a la sala: {room}."
 
 
 # # TESTS
