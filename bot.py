@@ -151,7 +151,9 @@ async def investigate(ctx: discord.ApplicationContext, objetivo: str):
 @escape.command(name="objetos", description="Muestra los objetos de tu inventario.")
 async def inventory(ctx: discord.ApplicationContext):
     """Muestra los objetos de tu inventario."""
-    inventory = discape.get_inventory_dict()
+    inventory = discape.get_inventory_dict(
+        discape.get_player_location(ctx.interaction.user.name)[0]
+    )
     embeds = []
     for item in inventory:
         embed = discord.Embed(title=item, description=inventory[item])
@@ -164,7 +166,9 @@ async def inventory(ctx: discord.ApplicationContext):
 
 
 async def get_equipable_items(ctx: discord.AutocompleteContext):
-    return discape.get_inventory_names()
+    return discape.get_inventory_names(
+        discape.get_player_location(ctx.interaction.user.name)[0]
+    )
 
 
 @escape.command(name="equipar", description="Equipar un objeto.")
@@ -191,7 +195,11 @@ async def equip(ctx: discord.ApplicationContext, objeto: str):
 )
 async def combine(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
     """Combina dos objetos."""
-    await ctx.respond(discape.combine(objeto1, objeto2))
+    await ctx.respond(
+        discape.combine(
+            objeto1, objeto2, discape.get_player_location(ctx.interaction.user.name)[0]
+        )
+    )
 
 
 @escape.command(name="unirse", description="Unirse a una partida de sala de huida.")

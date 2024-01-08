@@ -125,40 +125,47 @@ def unlock_zone(player: str, item: str) -> str or None:
             before = None
         if row[key_col].value == item and path == before:
             row[key_col].value = None
+            update_player_location(player, room, row[depth_col].value)
             wb.save(file)
             return row[act_col].value
 
 
 def add_item(new_data: list[str]) -> None:
     """Adds a new item to the inventory.
-    The new item must be a list with the following format: [name, description]."""
+    The new item must be a list with the following format: [name, description, room]."""
     append_row("Inventario", new_data)
 
 
-def remove_item(item: str) -> None:
+def remove_item(item: str, room: str) -> None:
     """Removes the specified item from the inventory."""
     ws = wb["Inventario"]
     for row in ws:
-        if row[0].value == item:
+        if row[0].value == item and row[2].value == room:
             remove_row("Inventario", row[0].row)
             break
     wb.save(file)
 
 
-def get_inventory_dict() -> dict[str, str]:
+def get_inventory_dict(room) -> dict[str, str]:
     """Returns a dictionary with the item's name as the key and the item's description as the value."""
     ws = wb["Inventario"]
     return {
         row[0].value: row[1].value
         for row in ws.iter_rows(min_row=2)
-        if row[0].value is not None and row[1].value is not None
+        if row[0].value is not None
+        and row[1].value is not None
+        and row[2].value == room
     }
 
 
-def get_inventory_names() -> list[str]:
-    """Returns a list with the names of the items in the inventory."""
+def get_inventory_names(room) -> list[str]:
+    """Returns a list with the names of the items in the inventory of a specified room."""
     ws = wb["Inventario"]
-    return [row[0].value for row in ws][1:]
+    inventory = []
+    for row in ws:
+        if row[2].value == room:
+            inventory.append(row[0].value)
+    return inventory
 
 
 def equip(player, item) -> str:
@@ -167,8 +174,9 @@ def equip(player, item) -> str:
     sheet_name = "Personajes"
     player_column = CHAR_USER_COL
     hand_column = CHAR_HAND_COL
+    room = get_player_location(player)[0]
     player_row = get_column_values(sheet_name, player_column).index(player)
-    if item in get_inventory_names():
+    if item in get_inventory_names(room):
         ws.cell(row=player_row + 1, column=hand_column + 1, value=item)
         wb.save(file)
         return f"Equipaste: {item}."
@@ -176,10 +184,10 @@ def equip(player, item) -> str:
         return f"No tienes eso."
 
 
-def combine(item1: str, item2: str) -> str:  # TODO: This is not finished
+def combine(item1: str, item2: str, room) -> str:
     """Combines the two specified items and returns the resulting item.
     Returns None if the combination is not valid."""
-    if item1 not in get_inventory_names() or item2 not in get_inventory_names():
+    if item1 not in get_inventory_names(room) or item2 not in get_inventory_names(room):
         return "No tienes esos objetos."
 
     ws = wb["Combinaciones"]
@@ -187,16 +195,25 @@ def combine(item1: str, item2: str) -> str:  # TODO: This is not finished
     item2_col = 1
     result_col = 2
     desc_col = 3
+    room_col = 4
     for row in ws:
-        if row[item1_col].value == item1 and row[item2_col].value == item2:
-            add_item([row[result_col].value, row[desc_col].value])
-            remove_item(item1)
-            remove_item(item2)
+        if (
+            row[item1_col].value == item1
+            and row[item2_col].value == item2
+            and row[room_col].value == room
+        ):
+            add_item([row[result_col].value, row[desc_col].value, room])
+            remove_item(item1, room)
+            remove_item(item2, room)
             return "Has combinado los objetos y has obtenido un nuevo objeto."
-        elif row[item1_col].value == item2 and row[item2_col].value == item1:
-            add_item([row[result_col].value, row[desc_col].value])
-            remove_item(item1)
-            remove_item(item2)
+        elif (
+            row[item1_col].value == item2
+            and row[item2_col].value == item1
+            and row[room_col].value == room
+        ):
+            add_item([row[result_col].value, row[desc_col].value, room])
+            remove_item(item1, room)
+            remove_item(item2, room)
             return "Has combinado los objetos y has obtenido un nuevo objeto."
     return "No puedes combinar esos objetos."
 
@@ -206,7 +223,7 @@ def unlock_item(room: str, item: str) -> str:
     room = wb[room]
     for attraction in room:
         if attraction[0].value == item:
-            add_item([item, attraction[1].value])
+            add_item([item, attraction[1].value, room.title])
             remove_row(room.title, attraction[0].row)
             return f"Has obtenido un nuevo objeto: {item}."
     wb.save(file)
@@ -240,6 +257,10 @@ def take_path(player: str, choice: str) -> str:
     """Moves the player to the specified path or adds the item to the inventory.
     Returns the description of the new room or the description of the item."""
     (room, path) = get_player_location(player)
+
+    if room is None:
+        return "No estás en ninguna sala."
+
     ws = wb[room]
     name_col = 0
     depth_col = 2

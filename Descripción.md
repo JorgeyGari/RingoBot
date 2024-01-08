@@ -1,6 +1,6 @@
 ## Acerca de
 
-Discape es una biblioteca que añade nuevos comandos al RingoBot que busca dar una interfaz (inspirada en el sistema de Zero Escape) para simular juegos de salas de huida multijugador mediante comandos de barra diagonal en Discord.
+Discape es una biblioteca que añade nuevos comandos al RingoBot para dar una interfaz (inspirada en el sistema de Zero Escape) que simula juegos de salas de huida para múltiples jugadores simultáneos mediante comandos de barra diagonal en Discord.
 
 ## Objetivos
 
@@ -35,15 +35,15 @@ Para nosotros, una sala de huida es un conjunto de **atracciones** que pueden se
 La primera hoja será la hoja de **Personajes**. 
 Está compuesta de las siguientes columnas:
 
-| Nombre | Jugador | Sala | Camino | Equipado | Fuerza | Resistencia | Agilidad | Inteligencia | Suerte |
+| Nombre | Jugador | Sala | Camino | Equipado | *Fuerza* | *Resistencia* | *Agilidad* | *Inteligencia* | *Suerte* |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Nombre del personaje | Alias (@) en Discord | Nombre del canal que representa la sala en la que se encuentra el personaje | Sucesión de decisiones que ha tomado el jugador | Objeto que el personaje lleva en la mano | Número | Número | Número | Número | Número |
 
-Las características numéricas son personalizables y ayudan a la hora de hacer tiradas de salvación.
+Las características numéricas son personalizables y ayudan a la hora de hacer tiradas de salvación. Las que aparecen en la tabla son meros ejemplos.
 
 #### Inventario
 
-La segunda hoja será la hoja de **Inventario**. Esta representa los objetos que ha recogido el equipo que está investigando. Los objetos descubiertos se comparten entre todos.
+La segunda hoja será la hoja de **Inventario**. Esta representa los objetos que ha recogido el equipo que está investigando. Los objetos descubiertos se comparten entre todos los participantes de una misma sala de huida.
 Está compuesta de las siguientes columnas:
 
 | Objeto | Descripción | Sala |
@@ -52,7 +52,7 @@ Está compuesta de las siguientes columnas:
 
 #### Combinaciones
 
-La tercera hoja será la hoja de **Combinaciones**. Dos objetos del inventario pueden ser combinados para dar lugar a un nuevo objeto. En la práctica, esto elimina dos objetos en la hoja de inventario y crea uno nuevo que los sustituye.
+La tercera hoja será la hoja de **Combinaciones**. Dos objetos del inventario pueden ser combinados para producir un nuevo objeto. En la práctica, esto elimina dos objetos en la hoja de inventario y crea uno nuevo que los sustituye.
 
 > **Ejemplo:** Kai ha encontrado un destornillador y un mando de televisión y los ha guardado. Si utiliza el destornillador con el mando de televisión, puede desatornillar el mando y recoger las pilas que tiene dentro.
 > 
@@ -60,12 +60,16 @@ La tercera hoja será la hoja de **Combinaciones**. Dos objetos del inventario p
 
 Está compuesta de las siguientes columnas:
 
-| Objeto 1 | Objeto 2 | Resultado | Descripción | Acción |
+| Objeto 1 | Objeto 2 | Resultado | Descripción | Sala |
 | --- | --- | --- | --- | --- |
-| Objeto para combinar | Objeto para combinar | Objeto nuevo | Descripción del objeto nuevo | Descripción de la acción de combinación |
+| Objeto para combinar | Objeto para combinar | Objeto nuevo | Descripción del objeto nuevo | Sala a la que pertenecen los objetos |
+
 #### Sala de huida
 
 La cuarta hoja en adelante son las hojas de la **Sala de huida**. Describen la estructura de la sala.
+
+Una sala de huida se asocia con un canal del servidor. Por eso, el título de la hoja debe coincidir exactamente con el título del canal que servirá para este canal. Por ejemplo, si nuestra sala se llama "Sala de prueba" y los jugadores resalizarán la investigación en el canal *#sala-de-prueba*, el título de la hoja deberá ser "sala-de-prueba".
+
 Una hoja de sala de huida está compuesta de las siguientes columnas:
 
 | Atracción | Descripción | Profundidad | Camino | Llave | Acción |
@@ -82,6 +86,12 @@ El **camino** representa las decisiones de investigación que ha tomado el jugad
 > 
 > Kai solo encuentra un frigorífico en la cocina, así que decide volver. Su última decisión se borra del camino, porque ha vuelto sobre sus pasos. Su camino ahora es: `A`.
 
+Algunas palabras clave sirven para determinar el comportamiento especial de algunas atracciones:
+
+* Si la columna "Camino" contiene la palabra "Objeto", la atracción es un objeto recogible. Desaparecerá de la sala en cuanto alguien la investigue y generará un objeto nuevo en el inventario.
+
+* Si la columna "Camino" contiene la palabra `Final`, la atracción es la salida de la sala. Al investigarla, todos los jugadores que estaban en ella serán liberados (su columna "Sala" pasa a estar vacía).
+
 La **profundidad** de una atracción representa el lugar donde está localizada. Para que una atracción sea visible para un jugador, deben cumplirse dos condiciones:
 
 1. La profundidad de la atracción es igual al camino que ha tomado el jugador.
@@ -89,11 +99,15 @@ La **profundidad** de una atracción representa el lugar donde está localizada.
 
 > **Ejemplo:** En el caso de arriba, estas son las profundidades de cada una de las atracciones mencionadas:
 > 
-> Pasillo izquierdo: ` ` (profundidad nula)
-> Pasillo derecho: ` ` (profundidad nula)
-> Baño: `A`
-> Cocina: `A`
-> Estudio: `A`
-> Frigorífico: `AB`
+> Pasillo izquierdo: ` ` (profundidad nula)  
+> Pasillo derecho: ` ` (profundidad nula)  
+> Baño: `A`  
+> Cocina: `A`  
+> Estudio: `A`  
+> Frigorífico: `AB`  
 
 La **llave** es el objeto con el que es necesario investigar el camino previo para revelar la atracción a la que está asociada. Cuando el usuario investiga la atracción correcta con el objeto equipado correcto, esta columna se vacía con el mensaje especificado en la columna "Acción".
+
+### Iniciar y terminar una partida
+
+Para que el juego comience, el jugador debe unirse a la sala de huida con un comando. Al hacerlo, su columna "Sala" en la hoja "Personajes" se rellenará con el nombre del canal en el que haya sido ejecutado el comando.
