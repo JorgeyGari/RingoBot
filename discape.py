@@ -148,7 +148,11 @@ def remove_item(item: str) -> None:
 def get_inventory_dict() -> dict[str, str]:
     """Returns a dictionary with the item's name as the key and the item's description as the value."""
     ws = wb["Inventario"]
-    return {row[0].value: row[1].value for row in ws.iter_rows(min_row=2) if row[0].value is not None and row[1].value is not None}
+    return {
+        row[0].value: row[1].value
+        for row in ws.iter_rows(min_row=2)
+        if row[0].value is not None and row[1].value is not None
+    }
 
 
 def get_inventory_names() -> list[str]:
@@ -177,7 +181,7 @@ def combine(item1: str, item2: str) -> str:  # TODO: This is not finished
     Returns None if the combination is not valid."""
     if item1 not in get_inventory_names() or item2 not in get_inventory_names():
         return "No tienes esos objetos."
-    
+
     ws = wb["Combinaciones"]
     item1_col = 0
     item2_col = 1
@@ -208,6 +212,30 @@ def unlock_item(room: str, item: str) -> str:
     wb.save(file)
 
 
+def get_path_from_choice(player: str, choice: str) -> str or None:
+    """Returns the key of the specified choice."""
+    (room, _) = get_player_location(player)
+    ws = wb[room]
+    name_col = 0
+    path_col = 3
+
+    for row in ws:
+        if row[name_col].value == choice:
+            return row[path_col].value
+
+
+def get_key_from_path(player: str, path: str) -> str or None:
+    """Returns the key of the specified path."""
+    (room, _) = get_player_location(player)
+    ws = wb[room]
+    depth_col = 2
+    key_col = 4
+
+    for row in ws:
+        if row[depth_col].value == path:
+            return row[key_col].value
+
+
 def take_path(player: str, choice: str) -> str:
     """Moves the player to the specified path or adds the item to the inventory.
     Returns the description of the new room or the description of the item."""
@@ -218,15 +246,20 @@ def take_path(player: str, choice: str) -> str:
     path_col = 3
     hand = get_player_hand(player)
 
-    if hand:
-        result = unlock_zone(player, hand)
-        if result:
-            return result
-
     if choice == "↩️ Volver":
         update_player_location(player, room, path[:-1])
         wb.save(file)
         return "Volviste al lugar anterior."
+
+    if hand:
+        if path is not None:
+            key = get_key_from_path(player, path + get_path_from_choice(player, choice))
+        else:
+            key = get_key_from_path(player, get_path_from_choice(player, choice))
+        if key == hand:
+            result = unlock_zone(player, hand)
+            if result:
+                return result
 
     for row in ws:
         if (
@@ -292,3 +325,5 @@ def join_room(player: str, room: str) -> str:
 # unlock_zone("reimeko", "Antorcha")
 # print(get_inventory_dict())
 # print(combine("Destornillador", "Caja"))
+# print(get_path_from_choice("jorgeygari", "Puerta"))
+# print(get_key_from_path("jorgeygari", "BF"))

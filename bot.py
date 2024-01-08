@@ -28,15 +28,13 @@ class PaginationView(discord.ui.View):
 
     @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
     async def previous_page(
-        self, button: discord.ui.Button, interaction: discord.Interaction
+        self, _: discord.ui.Button, interaction: discord.Interaction
     ):
         self.current = (self.current - 1) % len(self.embeds)
         await self.update_page(interaction)
 
     @discord.ui.button(label="➡️", style=discord.ButtonStyle.blurple)
-    async def next_page(
-        self, button: discord.ui.Button, interaction: discord.Interaction
-    ):
+    async def next_page(self, _: discord.ui.Button, interaction: discord.Interaction):
         self.current = (self.current + 1) % len(self.embeds)
         await self.update_page(interaction)
 
@@ -131,9 +129,12 @@ async def tirada(ctx: discord.ApplicationContext, característica: str):
 
 async def get_investigation_options(ctx: discord.AutocompleteContext):
     room, path = discape.get_player_location(ctx.interaction.user.name)
-    return discape.get_zones(ctx.interaction.user.name) + (
-        ["↩️ Volver"] if room and path else []
-    )
+    if room:
+        return discape.get_zones(ctx.interaction.user.name) + (
+            ["↩️ Volver"] if room and path else []
+        )
+    else:
+        return []
 
 
 @escape.command(name="investigar", description="Investiga en la sala de huida.")
@@ -192,10 +193,19 @@ async def combine(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
     """Combina dos objetos."""
     await ctx.respond(discape.combine(objeto1, objeto2))
 
+
 @escape.command(name="unirse", description="Unirse a una partida de sala de huida.")
 async def join(ctx: discord.ApplicationContext):
     """Unirse a una partida de sala de huida."""
-    await ctx.respond(discape.join_room(ctx.interaction.user.name, ctx.interaction.channel.name))
+    (room, _) = discape.get_player_location(ctx.interaction.user.name)
+    if room:
+        await ctx.respond(
+            "Aún no has escapado de la sala de huida en la que estás.", ephemeral=True
+        )
+    else:
+        await ctx.respond(
+            discape.join_room(ctx.interaction.user.name, ctx.interaction.channel.name)
+        )
 
 
 bot.run(os.getenv("TOKEN"))
