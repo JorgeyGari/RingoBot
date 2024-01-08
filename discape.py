@@ -148,7 +148,7 @@ def remove_item(item: str) -> None:
 def get_inventory_dict() -> dict[str, str]:
     """Returns a dictionary with the item's name as the key and the item's description as the value."""
     ws = wb["Inventario"]
-    return {row[0].value: row[1].value for row in ws.iter_rows(min_row=2)}
+    return {row[0].value: row[1].value for row in ws.iter_rows(min_row=2) if row[0].value is not None and row[1].value is not None}
 
 
 def get_inventory_names() -> list[str]:
@@ -175,6 +175,9 @@ def equip(player, item) -> str:
 def combine(item1: str, item2: str) -> str:  # TODO: This is not finished
     """Combines the two specified items and returns the resulting item.
     Returns None if the combination is not valid."""
+    if item1 not in get_inventory_names() or item2 not in get_inventory_names():
+        return "No tienes esos objetos."
+    
     ws = wb["Combinaciones"]
     item1_col = 0
     item2_col = 1
@@ -240,6 +243,7 @@ def take_path(player: str, choice: str) -> str:
                     update_player_location(player, room, row[path_col].value)
             wb.save(file)
             return row[1].value
+    return "No puedes ir por ahí."
 
 
 def escaped(room: str) -> str:
