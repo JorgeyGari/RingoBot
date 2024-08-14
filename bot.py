@@ -14,6 +14,10 @@ load_dotenv()
 bot = discord.Bot(debug_guilds=[429400823395647489], intents=intents)
 TOKEN = os.getenv("TOKEN")
 
+HALL_OF_FAME_CHANNEL_ID = 1273250919110152258
+STAR_EMOJI = "⭐"
+REQUIRED_STARS = 4
+
 
 class PaginationView(discord.ui.View):
     def __init__(self, embeds):
@@ -68,6 +72,26 @@ async def emoji_reaction(message, emoji):
         await message.add_reaction(emoji)
     except Exception as e:
         print(e)
+
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    if reaction.emoji == STAR_EMOJI and not user.bot:
+        if reaction.count >= REQUIRED_STARS:
+            channel = bot.get_channel(HALL_OF_FAME_CHANNEL_ID)
+
+            # Make sure the message isn't already in the hall-of-fame channel
+            async for message in channel.history(limit=200):
+                if message.content == reaction.message.content:
+                    return
+
+            # Send the message content to the hall-of-fame channel
+            embed = discord.Embed(description=reaction.message.content)
+            embed.set_author(
+                name=reaction.message.author.display_name,
+                icon_url=reaction.message.author.avatar.url,
+            )
+            await channel.send(embed=embed)
 
 
 @bot.slash_command()
