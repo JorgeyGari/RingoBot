@@ -1,3 +1,5 @@
+# Discape
+
 ## Acerca de
 
 Discape es una biblioteca que añade nuevos comandos al RingoBot para dar una interfaz (inspirada en el sistema de Zero Escape) que simula juegos de salas de huida para múltiples jugadores simultáneos mediante comandos de barra diagonal en Discord.
@@ -25,14 +27,14 @@ Una vez cargado el archivo, el bot guardará los cambios en una copia local cada
 Para nosotros, una sala de huida es un conjunto de **atracciones** que pueden ser investigadas. Investigar una atracción puede hacerse con las manos vacías o con un **objeto equipado**. Los usuarios que investigan en una sala de huida son **jugadores** que interpretan a un **personaje**. Cuando un usuario investiga una atracción, esta puede no devolverle nada, desbloquear un **objeto** o **permitir la salida**. Si a un usuario se le permite la salida, ha logrado escapar y se considera una victoria.
 
 > **Ejemplo:** Kai investiga una cajonera y trata de abrir un cajón. El cajón está bloqueado por un cerrojo. Kai utiliza una llave para abrir el cerrojo y dentro encuentra un diario.
-> 
+>
 > Esto son dos acciones interpretadas por el `personaje` Kai sobre la `atracción` cajón. En su primera acción, al `investigar`, Kai no tiene ningún objeto equipado. La atracción no devuelve nada. En la segunda acción, Kai `investiga` con un `objeto equipado`: la llave. Ahora, la `atracción` cajón devuelve un nuevo `objeto`: el diario.
 
 ### Estructura del `.xlsx`
 
 #### Personajes
 
-La primera hoja será la hoja de **Personajes**. 
+La primera hoja será la hoja de **Personajes**.
 Está compuesta de las siguientes columnas:
 
 | Nombre | Jugador | Sala | Camino | Equipado | *Fuerza* | *Resistencia* | *Agilidad* | *Inteligencia* | *Suerte* |
@@ -55,7 +57,7 @@ Está compuesta de las siguientes columnas:
 La tercera hoja será la hoja de **Combinaciones**. Dos objetos del inventario pueden ser combinados para producir un nuevo objeto. En la práctica, esto elimina dos objetos en la hoja de inventario y crea uno nuevo que los sustituye.
 
 > **Ejemplo:** Kai ha encontrado un destornillador y un mando de televisión y los ha guardado. Si utiliza el destornillador con el mando de televisión, puede desatornillar el mando y recoger las pilas que tiene dentro.
-> 
+>
 > Kai ha `combinado` dos `objetos` que tenía en el inventario: el destornillador y el mando de televisión. Estos dos `objetos` se han eliminado de su inventario y se ha añadido uno nuevo: las pilas.
 
 Está compuesta de las siguientes columnas:
@@ -79,11 +81,11 @@ Una hoja de sala de huida está compuesta de las siguientes columnas:
 El **camino** representa las decisiones de investigación que ha tomado el jugador. Cuando inicia una sala de huida, el camino está vacío. Al elegir investigar una atracción, está tomando una decisión que se representa escribiendo una nueva letra en el camino. En esencia, es un árbol.
 
 > **Ejemplo:** Kai entra en la sala de huida. Su `camino` está vacío.
-> 
+>
 > Tiene dos opciones para avanzar: puede ir por el pasillo izquierdo (A) o puede ir por el pasillo derecho (B). Kai elige el pasillo izquierdo. Su `camino` ahora es: `A`.
-> 
+>
 > Al entrar en el pasillo izquierdo, se encuentra con tres habitaciones: un baño (A), una cocina (B) o un estudio (C). Kai ha decidido entrar en la cocina. Su `camino` ahora es: `AB`.
-> 
+>
 > Kai solo encuentra un frigorífico en la cocina, así que decide volver. Su última decisión se borra del camino, porque ha vuelto sobre sus pasos. Su camino ahora es: `A`.
 
 Algunas palabras clave sirven para determinar el comportamiento especial de algunas atracciones:
@@ -98,9 +100,9 @@ La **profundidad** de una atracción representa el lugar donde está localizada.
 2. La atracción no tiene llave.
 
 > **Ejemplo:** En el caso de arriba, estas son las profundidades de cada una de las atracciones mencionadas:
-> 
-> Pasillo izquierdo: ` ` (profundidad nula)  
-> Pasillo derecho: ` ` (profundidad nula)  
+>
+> Pasillo izquierdo: `` (profundidad nula)  
+> Pasillo derecho: `` (profundidad nula)  
 > Baño: `A`  
 > Cocina: `A`  
 > Estudio: `A`  

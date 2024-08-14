@@ -12,6 +12,7 @@ intents = discord.Intents.all()
 
 load_dotenv()
 bot = discord.Bot(debug_guilds=[429400823395647489], intents=intents)
+TOKEN = os.getenv("TOKEN")
 
 
 class PaginationView(discord.ui.View):
@@ -216,4 +217,4 @@ async def join(ctx: discord.ApplicationContext):
         )
 
 
-bot.run(os.getenv("TOKEN"))
+bot.run(TOKEN)
