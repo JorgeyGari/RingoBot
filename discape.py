@@ -79,7 +79,7 @@ def get_player_hand(player: str) -> str:
     return ws.cell(row=player_row + 1, column=hand_column + 1).value
 
 
-def update_player_location(player: str, location: str, path: str or None) -> None:
+def update_player_location(player: str, location: str, path: str | None) -> None:
     """Updates the location of the specified player."""
     ws = wb["Personajes"]
     sheet_name = "Personajes"
@@ -110,7 +110,7 @@ def get_zones(player: str) -> list[str]:
     return zones
 
 
-def unlock_zone(player: str, item: str) -> str or None:
+def unlock_zone(player: str, item: str) -> str | None:
     """Unlocks the zone with the specified item."""
     (room, path) = get_player_location(player)
     sheet_name = room
@@ -229,7 +229,7 @@ def unlock_item(room: str, item: str) -> str:
     wb.save(file)
 
 
-def get_path_from_choice(player: str, choice: str) -> str or None:
+def get_path_from_choice(player: str, choice: str) -> str | None:
     """Returns the key of the specified choice."""
     (room, _) = get_player_location(player)
     ws = wb[room]
@@ -241,7 +241,7 @@ def get_path_from_choice(player: str, choice: str) -> str or None:
             return row[path_col].value
 
 
-def get_key_from_path(player: str, path: str) -> str or None:
+def get_key_from_path(player: str, path: str) -> str | None:
     """Returns the key of the specified path."""
     (room, _) = get_player_location(player)
     ws = wb[room]
@@ -290,6 +290,8 @@ def take_path(player: str, choice: str) -> str:
                 return escaped(room)
             if row[path_col].value == "Objeto":
                 return unlock_item(room, choice)
+            if row[path_col].value.startswith("Puzle"):
+                return row[path_col].value.split(" ")[1]
             else:
                 if path and row[path_col].value:
                     update_player_location(player, room, path + row[path_col].value)
