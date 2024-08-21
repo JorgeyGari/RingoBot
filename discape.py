@@ -1,4 +1,5 @@
 from openpyxl import load_workbook
+import discord
 
 file = "file.xlsx"
 wb = load_workbook(filename=file)
@@ -8,6 +9,31 @@ CHAR_USER_COL = 1
 CHAR_ROOM_COL = 2
 CHAR_PATH_COL = 3
 CHAR_HAND_COL = 4
+
+
+class PaginationView(discord.ui.View):
+    def __init__(self, embeds):
+        super().__init__()
+        self.embeds = embeds
+        self.current = 0
+
+    async def update_page(self, interaction: discord.Interaction):
+        self.embeds[self.current].set_footer(
+            text=f"Página {self.current + 1} de {len(self.embeds)}"
+        )
+        await interaction.response.edit_message(embed=self.embeds[self.current])
+
+    @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
+    async def previous_page(
+        self, _: discord.ui.Button, interaction: discord.Interaction
+    ):
+        self.current = (self.current - 1) % len(self.embeds)
+        await self.update_page(interaction)
+
+    @discord.ui.button(label="➡️", style=discord.ButtonStyle.blurple)
+    async def next_page(self, _: discord.ui.Button, interaction: discord.Interaction):
+        self.current = (self.current + 1) % len(self.embeds)
+        await self.update_page(interaction)
 
 
 def get_column_values(sheet_name: str, column: int) -> list[str]:

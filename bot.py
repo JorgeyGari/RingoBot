@@ -8,40 +8,16 @@ import dice
 
 import discape
 
+from config import *
+
 intents = discord.Intents.all()
 
 load_dotenv()
 bot = discord.Bot(debug_guilds=[429400823395647489], intents=intents)
 TOKEN = os.getenv("TOKEN")
 
-HALL_OF_FAME_CHANNEL_ID = 1273250919110152258
-STAR_EMOJI = "⭐"
-REQUIRED_STARS = 4
-
-
-class PaginationView(discord.ui.View):
-    def __init__(self, embeds):
-        super().__init__()
-        self.embeds = embeds
-        self.current = 0
-
-    async def update_page(self, interaction: discord.Interaction):
-        self.embeds[self.current].set_footer(
-            text=f"Página {self.current + 1} de {len(self.embeds)}"
-        )
-        await interaction.response.edit_message(embed=self.embeds[self.current])
-
-    @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
-    async def previous_page(
-        self, _: discord.ui.Button, interaction: discord.Interaction
-    ):
-        self.current = (self.current - 1) % len(self.embeds)
-        await self.update_page(interaction)
-
-    @discord.ui.button(label="➡️", style=discord.ButtonStyle.blurple)
-    async def next_page(self, _: discord.ui.Button, interaction: discord.Interaction):
-        self.current = (self.current + 1) % len(self.embeds)
-        await self.update_page(interaction)
+conn_que = quests.create_connection("quests.db")
+quests.create_table(conn_que)
 
 
 @bot.event
@@ -184,7 +160,7 @@ async def inventory(ctx: discord.ApplicationContext):
         embed = discord.Embed(title=item, description=inventory[item])
         embeds.append(embed)
     if embeds:
-        view = PaginationView(embeds)
+        view = discape.PaginationView(embeds)
         await ctx.respond(embed=embeds[0], view=view, ephemeral=True)
     else:
         await ctx.respond("No tienes ningún objeto.", ephemeral=True)
