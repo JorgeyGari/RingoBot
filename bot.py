@@ -7,6 +7,7 @@ import replies
 import dice
 
 import discape
+import quests
 
 from config import *
 
@@ -96,6 +97,7 @@ async def dado(ctx: discord.ApplicationContext, dados: str, modificador: int):
 
 
 escape = bot.create_group("escape", "Comandos para juegos de sala de huida")
+mission = bot.create_group("misión", "Comandos para misiones de rol")
 
 
 @escape.command(name="iniciar", description="Inicia una partida de sala de huida.")
@@ -215,6 +217,79 @@ async def join(ctx: discord.ApplicationContext):
         await ctx.respond(
             discape.join_room(ctx.interaction.user.name, ctx.interaction.channel.name)
         )
+
+
+@mission.command(name="solicitar", description="Solicita una misión.")
+async def request(ctx: discord.ApplicationContext):
+    """Solicita una misión."""
+    response = quests.create_request(conn_que, ctx.interaction.user.name)
+    if response == -1:
+        await ctx.respond("Ya tienes una solicitud de misión en curso.", ephemeral=True)
+    else:
+        # Send a message to the quest-requests channel
+        channel = QUEST_REQUESTS_CHANNEL_ID
+        embed = discord.Embed(
+            title="Nueva solicitud de misión",
+            description=f"**Solicitante:** {ctx.interaction.user.name}",
+        )
+        await bot.get_channel(channel).send(embed=embed)
+
+        # Send a message to the player
+        await ctx.respond("Solicitud de misión enviada.", ephemeral=True)
+
+
+@mission.command(name="crear", description="Crea una misión.")
+@option(
+    "jugador",
+    description="Jugador al que asignar la misión.",
+    choices=quests.get_users_with_pending_requests(conn_que),
+    required=True,
+)
+@option("descripción", description="Descripción de la misión.", required=True)
+@option("recompensa", description="Recompensa de la misión.", required=True)
+async def create(
+    ctx: discord.ApplicationContext, jugador: str, descripción: str, recompensa: str
+):
+    """Crea una misión."""
+    try:
+        request_id = quests.get_user_request_id(conn_que, jugador)
+        quests.update_request(conn_que, jugador, descripción, recompensa)
+        # Send a message to the user's quest channel, which is stored in a dictionary
+        embed = discord.Embed(
+            author=discord.EmbedAuthor(name=f"Misión n.º {request_id}"),
+            title=descripción,
+            fields=[
+                discord.EmbedField(name="Recompensa", value=recompensa),
+            ],
+        )
+        await bot.get_channel(QUEST_CHANNEL_ID_DICT[jugador]).send(embed=embed)
+        await ctx.respond("Misión creada.")
+    except Exception as e:
+        await ctx.respond(f"Error: {e}", ephemeral=True)
+
+
+def get_quest_options(ctx: discord.AutocompleteContext):
+    records = quests.get_user_active_quests(conn_que, ctx.interaction.user.name)
+    return [f"{record[0]}: {record[2]}" for record in records]
+
+
+@mission.command(name="completar", description="Completa una misión.")
+@option(
+    "misión",
+    description="Misión que has completado.",
+    autocomplete=discord.utils.basic_autocomplete(get_quest_options),
+)
+async def complete(ctx: discord.ApplicationContext, misión: str):
+    # Send a message to the completed_quest channel
+    embed = discord.Embed(
+        title="Misión completada",
+        description=f"{ctx.interaction.user.name} ha completado la misión «{misión}».",
+    )
+    message = await bot.get_channel(COMPLETED_QUESTS_CHANNEL_ID).send(embed=embed)
+    await message.add_reaction("✅")  # Checkmark reaction
+    await message.add_reaction("❌")  # Cross reaction
+
+    await ctx.respond("Misión completada.", ephemeral=True)
 
 
 bot.run(TOKEN)
