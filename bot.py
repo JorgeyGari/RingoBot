@@ -10,6 +10,7 @@ import discape
 import quests
 
 from config import *
+import datetime
 
 intents = discord.Intents.all()
 
@@ -280,10 +281,19 @@ def get_quest_options(ctx: discord.AutocompleteContext):
     autocomplete=discord.utils.basic_autocomplete(get_quest_options),
 )
 async def complete(ctx: discord.ApplicationContext, misión: str):
-    # Send a message to the completed_quest channel
+    # Get the last message in the channel where the command was invoked
+    last_message = await ctx.interaction.channel.history(limit=1).flatten()
+    if last_message:
+        last_message_link = last_message[0].jump_url
+    else:
+        channel_name = ctx.interaction.channel.name
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        last_message_link = f"In channel '{channel_name}' at {current_time}"
+
+    # Send a message to the completed_quest channel with the link to the last message
     embed = discord.Embed(
         title="Misión completada",
-        description=f"{ctx.interaction.user.name} ha completado la misión «{misión}».",
+        description=f"{ctx.interaction.user.name} ha completado la misión «{misión}».\n\n[Enlace al último mensaje]({last_message_link})",
     )
     message = await bot.get_channel(COMPLETED_QUESTS_CHANNEL_ID).send(embed=embed)
     await message.add_reaction("✅")  # Checkmark reaction

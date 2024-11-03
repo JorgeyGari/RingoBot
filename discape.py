@@ -1,4 +1,5 @@
 from openpyxl import load_workbook
+import puzzles
 import discord
 
 file = "file.xlsx"
@@ -317,7 +318,8 @@ def take_path(player: str, choice: str) -> str:
             if row[path_col].value == "Objeto":
                 return unlock_item(room, choice)
             if row[path_col].value.startswith("Puzle"):
-                return row[path_col].value.split(" ")[1]
+                puzzle_name = row[path_col].value.split(" ")[1]
+                return puzzles.solve_puzzle(puzzle_name)
             else:
                 if path and row[path_col].value:
                     update_player_location(player, room, path + row[path_col].value)
