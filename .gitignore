@@ -10,3 +10,4 @@ __pycache__/
 rooms/*
 .venv/
 file.xlsx
+downloads/
