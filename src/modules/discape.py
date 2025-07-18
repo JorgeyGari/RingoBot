@@ -131,7 +131,7 @@ class DiscapeModule:
             return None
 
     def update_player_location(
-        self, player: str, location: str, path: str | None
+        self, player: str, location: str, path: Optional[str]
     ) -> None:
         """Update player's location."""
         if not self.wb:

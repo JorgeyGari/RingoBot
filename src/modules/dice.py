@@ -6,6 +6,7 @@ import random
 import logging
 import discord
 from discord.ext import commands
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class DiceModule:
     """Handles dice rolling functionality."""
 
-    def validate_dice(self, dice: str) -> str | None:
+    def validate_dice(self, dice: str) -> Optional[str]:
         """
         Validate dice input format.
 
