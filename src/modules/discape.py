@@ -113,7 +113,7 @@ class DiscapeModule:
             logger.error(f"Error getting player location: {e}")
             return (None, None)
 
-    def get_player_hand(self, player: str) -> str:
+    def get_player_hand(self, player: str) -> Optional[str]:
         """Get the item in player's hand."""
         if not self.wb:
             return None
