@@ -46,6 +46,9 @@ class RingoBot:
         # Register event handlers
         self._register_events()
 
+        # In-memory cache for hall of fame messages
+        self.hall_of_fame_cache = set()
+
         # Register slash commands
         self._register_commands()
 
@@ -83,11 +86,11 @@ class RingoBot:
             if reaction.emoji == config.STAR_EMOJI and not user.bot:
                 if reaction.count >= config.REQUIRED_STARS:
                     channel = self.bot.get_channel(config.HALL_OF_FAME_CHANNEL_ID)
+                    message_id = reaction.message.id
 
-                    # Check if message is already in hall of fame
-                    async for message in channel.history(limit=200):
-                        if message.content == reaction.message.content:
-                            return
+                    # Check if message is already in hall of fame using cache
+                    if message_id in self.hall_of_fame_cache:
+                        return
 
                     # Send to hall of fame
                     embed = discord.Embed(description=reaction.message.content)
@@ -96,6 +99,7 @@ class RingoBot:
                         icon_url=reaction.message.author.avatar.url,
                     )
                     await channel.send(embed=embed)
+                    self.hall_of_fame_cache.add(message_id)
 
     def _register_commands(self):
         """Register slash commands."""
