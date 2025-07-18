@@ -4,6 +4,7 @@ Replies module for handling automatic message responses.
 
 import random
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,9 @@ logger = logging.getLogger(__name__)
 class RepliesModule:
     """Handles automatic replies to user messages."""
 
-    def handle_message(self, message: str) -> str | None:
+    LUC_USER_ID = "<@527911869550428168>"
+
+    def handle_message(self, message: str) -> Optional[str]:
         """
         Process a message and return an appropriate reply if applicable.
 
@@ -48,8 +51,8 @@ class RepliesModule:
         if p_message.startswith("!insulta"):
             user_parts = message.split(" ")[1:]
             if user_parts:
-                if user_parts[0] == "<@527911869550428168>":
-                    return "Te quiero, <@527911869550428168> <3"
+                if user_parts[0] == self.LUC_USER_ID:
+                    return f"Te quiero, {self.LUC_USER_ID} <3"
                 else:
                     users = " ".join(user_parts)
                     return f"{users}, gilipollas de mierda."
