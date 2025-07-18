@@ -24,3 +24,5 @@ yt-dlp==2024.12.6
 # pip install discord
 # pip install py-cord
 # pip uninstall discord -y
+
+# Python 3.12.7
