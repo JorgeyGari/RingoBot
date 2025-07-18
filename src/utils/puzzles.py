@@ -23,9 +23,13 @@ class PuzzlesSolver:
             Result string from puzzle function
         """
         try:
-            # Get the puzzle function by name
-            puzzle_func = getattr(PuzzlesSolver, puzzle_name, None)
-            if puzzle_func and callable(puzzle_func):
+            # Whitelist of allowed puzzle functions
+            puzzle_registry = {
+                "hola": PuzzlesSolver.hola,
+                # Add more puzzle functions here as needed
+            }
+            puzzle_func = puzzle_registry.get(puzzle_name)
+            if puzzle_func:
                 return puzzle_func()
             else:
                 logger.warning(f"Puzzle function '{puzzle_name}' not found")
