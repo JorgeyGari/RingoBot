@@ -74,7 +74,15 @@ class MusicModule:
             audio_file = self.download_audio(link)
 
             # Play the audio
-            vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=audio_file))
+            ffmpeg_path = getattr(config, "FFMPEG_PATH", "ffmpeg")
+            if not os.path.isfile(ffmpeg_path):
+                logger.error(f"FFmpeg executable not found at: {ffmpeg_path}")
+                await ctx.send(
+                    "No se encontró el ejecutable de FFmpeg.", ephemeral=True
+                )
+                await vc.disconnect()
+                return
+            vc.play(discord.FFmpegPCMAudio(executable=ffmpeg_path, source=audio_file))
 
             # Get the title from filename
             title = os.path.basename(audio_file).replace("_", " ").replace(".mp3", "")
