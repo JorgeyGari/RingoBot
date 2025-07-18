@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  ringobot:
+    build: .
+    container_name: ringobot
+    restart: unless-stopped
+    
+    # Environment variables
+    environment:
+      - PYTHONUNBUFFERED=1
+    
+    # Mount volumes for persistent data
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./downloads:/app/downloads
+      # Mount .env file if it exists
+      - ./.env:/app/.env:ro
+    
+    # Network configuration
+    networks:
+      - ringobot-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+networks:
+  ringobot-network:
+    driver: bridge

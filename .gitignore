@@ -1,13 +1,38 @@
+# Environment variables
 .env
-venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+*.pyc
+
+# IDE files
+.idea/
 *.xml
 *.iml
-*.pyc
-.idea
-*.json
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
 _trial_temp/
-__pycache__/
-rooms/*
-.venv/
-file.xlsx
+tmp/
+temp/
+
+# Data files (comment out if you want to track them)
+data/file.xlsx
+data/*.db
 downloads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
