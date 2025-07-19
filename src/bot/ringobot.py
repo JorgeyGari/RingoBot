@@ -163,10 +163,12 @@ class RingoBot:
 
         @escape.command(name="investigar", description="Investiga en la sala de huida.")
         @discord.option(
-            "objetivo", 
-            description="¿Qué quieres investigar?", 
-            autocomplete=discord.utils.basic_autocomplete(self._get_investigation_options),
-            required=True
+            "objetivo",
+            description="¿Qué quieres investigar?",
+            autocomplete=discord.utils.basic_autocomplete(
+                self._get_investigation_options
+            ),
+            required=True,
         )
         async def investigar(ctx: discord.ApplicationContext, objetivo: str):
             """Investiga en la sala de huida."""
@@ -181,10 +183,10 @@ class RingoBot:
 
         @escape.command(name="equipar", description="Equipar un objeto.")
         @discord.option(
-            "objeto", 
-            description="¿Qué objeto quieres equipar?", 
+            "objeto",
+            description="¿Qué objeto quieres equipar?",
             autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
-            required=True
+            required=True,
         )
         async def equipar(ctx: discord.ApplicationContext, objeto: str):
             """Equipar un objeto."""
@@ -192,16 +194,16 @@ class RingoBot:
 
         @escape.command(name="combinar", description="Combina dos objetos.")
         @discord.option(
-            "objeto1", 
-            description="¿Qué objeto quieres combinar?", 
+            "objeto1",
+            description="¿Qué objeto quieres combinar?",
             autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
-            required=True
+            required=True,
         )
         @discord.option(
-            "objeto2", 
-            description="¿Con qué objeto quieres combinarlo?", 
+            "objeto2",
+            description="¿Con qué objeto quieres combinarlo?",
             autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
-            required=True
+            required=True,
         )
         async def combinar(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
             """Combina dos objetos."""
@@ -213,6 +215,51 @@ class RingoBot:
         async def unirse(ctx: discord.ApplicationContext):
             """Unirse a una partida de sala de huida."""
             await self.discape_module.handle_join_command(ctx)
+
+        # Mission/Quest command group
+        mission = self.bot.create_group("misión", "Comandos para misiones de rol")
+
+        @mission.command(name="solicitar", description="Solicita una misión.")
+        async def solicitar(ctx: discord.ApplicationContext):
+            """Solicita una misión."""
+            await self.quests_module.handle_request_command(ctx)
+
+        @mission.command(name="crear", description="Crea una misión.")
+        @discord.option(
+            "jugador",
+            description="Jugador al que asignar la misión.",
+            autocomplete=discord.utils.basic_autocomplete(
+                self._get_pending_quest_users
+            ),
+            required=True,
+        )
+        @discord.option(
+            "descripción", description="Descripción de la misión.", required=True
+        )
+        @discord.option(
+            "recompensa", description="Recompensa de la misión.", required=True
+        )
+        async def crear(
+            ctx: discord.ApplicationContext,
+            jugador: str,
+            descripción: str,
+            recompensa: str,
+        ):
+            """Crea una misión."""
+            await self.quests_module.handle_create_command(
+                ctx, jugador, descripción, recompensa
+            )
+
+        @mission.command(name="completar", description="Completa una misión.")
+        @discord.option(
+            "misión",
+            description="Misión que has completado.",
+            autocomplete=discord.utils.basic_autocomplete(self._get_quest_options),
+            required=True,
+        )
+        async def completar(ctx: discord.ApplicationContext, misión: str):
+            """Completa una misión."""
+            await self.quests_module.handle_complete_command(ctx, misión)
 
     def _get_investigation_options(self, ctx: discord.AutocompleteContext) -> List[str]:
         """Get autocomplete options for investigation command."""
@@ -230,6 +277,23 @@ class RingoBot:
             return self.discape_module.get_equipable_items_for_player(player_name)
         except Exception as e:
             logger.error(f"Error getting equipable items: {e}")
+            return []
+
+    def _get_quest_options(self, ctx: discord.AutocompleteContext) -> List[str]:
+        """Get autocomplete options for active quests."""
+        try:
+            player_name = ctx.interaction.user.name
+            return self.quests_module.get_quest_options_for_player(player_name)
+        except Exception as e:
+            logger.error(f"Error getting quest options: {e}")
+            return []
+
+    def _get_pending_quest_users(self, ctx: discord.AutocompleteContext) -> List[str]:
+        """Get autocomplete options for users with pending quest requests."""
+        try:
+            return self.quests_module.get_users_with_pending_requests()
+        except Exception as e:
+            logger.error(f"Error getting pending quest users: {e}")
             return []
 
     def run(self):
