@@ -5,7 +5,7 @@ Main RingoBot class that manages the Discord bot and its modules.
 import discord
 import logging
 import sys
-from typing import Optional
+from typing import Optional, List
 
 from utils.config import config
 from modules.replies import RepliesModule
@@ -131,6 +131,106 @@ class RingoBot:
         async def ytmusic(ctx: discord.ApplicationContext, link: str):
             """Reproduce música de YouTube en tu canal de voz."""
             await self.music_module.play_youtube_music(ctx, self.bot, link)
+
+        # Escape room command group
+        escape = self.bot.create_group(
+            "escape", "Comandos para juegos de sala de huida"
+        )
+
+        @escape.command(
+            name="iniciar", description="Inicia una partida de sala de huida."
+        )
+        @discord.option(
+            "archivo", description="Archivo de sala de huida.", required=True
+        )
+        async def iniciar(ctx: discord.ApplicationContext, archivo: discord.Attachment):
+            """Inicia una partida de sala de huida."""
+            await self.discape_module.handle_start_command(ctx, archivo)
+
+        @escape.command(
+            name="tirada",
+            description="Tira un dado de 20 caras y suma tu bonificación de la característica elegida.",
+        )
+        @discord.option(
+            "característica",
+            description="Característica a tirar.",
+            choices=["Fuerza", "Resistencia", "Agilidad", "Inteligencia", "Suerte"],
+            required=True,
+        )
+        async def tirada(ctx: discord.ApplicationContext, característica: str):
+            """Haz una tirada con una estadística."""
+            await self.discape_module.handle_stat_roll_command(ctx, característica)
+
+        @escape.command(name="investigar", description="Investiga en la sala de huida.")
+        @discord.option(
+            "objetivo", 
+            description="¿Qué quieres investigar?", 
+            autocomplete=discord.utils.basic_autocomplete(self._get_investigation_options),
+            required=True
+        )
+        async def investigar(ctx: discord.ApplicationContext, objetivo: str):
+            """Investiga en la sala de huida."""
+            await self.discape_module.handle_investigate_command(ctx, objetivo)
+
+        @escape.command(
+            name="objetos", description="Muestra los objetos de tu inventario."
+        )
+        async def objetos(ctx: discord.ApplicationContext):
+            """Muestra los objetos de tu inventario."""
+            await self.discape_module.handle_inventory_command(ctx)
+
+        @escape.command(name="equipar", description="Equipar un objeto.")
+        @discord.option(
+            "objeto", 
+            description="¿Qué objeto quieres equipar?", 
+            autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
+            required=True
+        )
+        async def equipar(ctx: discord.ApplicationContext, objeto: str):
+            """Equipar un objeto."""
+            await self.discape_module.handle_equip_command(ctx, objeto)
+
+        @escape.command(name="combinar", description="Combina dos objetos.")
+        @discord.option(
+            "objeto1", 
+            description="¿Qué objeto quieres combinar?", 
+            autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
+            required=True
+        )
+        @discord.option(
+            "objeto2", 
+            description="¿Con qué objeto quieres combinarlo?", 
+            autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
+            required=True
+        )
+        async def combinar(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
+            """Combina dos objetos."""
+            await self.discape_module.handle_combine_command(ctx, objeto1, objeto2)
+
+        @escape.command(
+            name="unirse", description="Unirse a una partida de sala de huida."
+        )
+        async def unirse(ctx: discord.ApplicationContext):
+            """Unirse a una partida de sala de huida."""
+            await self.discape_module.handle_join_command(ctx)
+
+    def _get_investigation_options(self, ctx: discord.AutocompleteContext) -> List[str]:
+        """Get autocomplete options for investigation command."""
+        try:
+            player_name = ctx.interaction.user.name
+            return self.discape_module.get_investigation_options(player_name)
+        except Exception as e:
+            logger.error(f"Error getting investigation options: {e}")
+            return []
+
+    def _get_equipable_items(self, ctx: discord.AutocompleteContext) -> List[str]:
+        """Get autocomplete options for equipable items."""
+        try:
+            player_name = ctx.interaction.user.name
+            return self.discape_module.get_equipable_items_for_player(player_name)
+        except Exception as e:
+            logger.error(f"Error getting equipable items: {e}")
+            return []
 
     def run(self):
         """Start the bot."""
