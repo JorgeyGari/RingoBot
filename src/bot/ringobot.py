@@ -86,6 +86,7 @@ class RingoBot:
 
         @self.bot.event
         async def on_reaction_add(reaction, user):
+            # Handle hall of fame reactions
             if reaction.emoji == config.STAR_EMOJI and not user.bot:
                 if reaction.count >= config.REQUIRED_STARS:
                     channel = self.bot.get_channel(config.HALL_OF_FAME_CHANNEL_ID)
@@ -103,6 +104,55 @@ class RingoBot:
                     )
                     await channel.send(embed=embed)
                     self.hall_of_fame_cache.add(message_id)
+
+            # Handle quest approval/rejection reactions
+            if (
+                not user.bot
+                and reaction.message.channel.id == config.COMPLETED_QUESTS_CHANNEL_ID
+            ):
+                # Check if user has admin permissions
+                member = reaction.message.guild.get_member(user.id)
+                if member and member.guild_permissions.administrator:
+                    message_id = str(reaction.message.id)
+                    user_id = str(user.id)
+
+                    if reaction.emoji == "✅":
+                        # Quest approval
+                        success = await self.quests_module.handle_quest_approval(
+                            self.bot, message_id, user_id
+                        )
+                        if success:
+                            try:
+                                # Update the embed to show approval
+                                embed = reaction.message.embeds[0]
+                                embed.color = discord.Color.green()
+                                embed.title = "✅ Misión cumplida"
+                                embed.set_footer(
+                                    text=f"Comprobada por {user.display_name}"
+                                )
+                                await reaction.message.edit(embed=embed)
+                                await reaction.message.clear_reactions()
+                            except Exception as e:
+                                logger.error(f"Error updating approval message: {e}")
+
+                    elif reaction.emoji == "❌":
+                        # Quest rejection
+                        success = await self.quests_module.handle_quest_rejection(
+                            self.bot, message_id, user_id
+                        )
+                        if success:
+                            try:
+                                # Update the embed to show rejection
+                                embed = reaction.message.embeds[0]
+                                embed.color = discord.Color.red()
+                                embed.title = "❌ Misión no cumplida"
+                                embed.set_footer(
+                                    text=f"Comprobada por {user.display_name}"
+                                )
+                                await reaction.message.edit(embed=embed)
+                                await reaction.message.clear_reactions()
+                            except Exception as e:
+                                logger.error(f"Error updating rejection message: {e}")
 
     def _register_commands(self):
         """Register slash commands."""
