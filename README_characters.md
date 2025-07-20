@@ -6,6 +6,17 @@ This document describes the character tracking system implementation for RingoBo
 
 The character tracking system allows users to register characters and track their PC (points) through a Discord bot interface. The system includes both user commands and admin commands for managing characters and points.
 
+## Quest Completion Workflow
+
+The quest system now includes an approval workflow:
+
+1. **Quest Assignment**: Admins create quests for users
+2. **Quest Completion**: Users complete quests using `/misión completar`
+3. **Admin Review**: Completion notifications are sent to a dedicated channel with reaction buttons
+4. **Approval/Rejection**: Admins can react with ✅ (approve) or ❌ (reject)
+   - **✅ Approval**: User receives congratulatory message with reward details
+   - **❌ Rejection**: Quest is reset to active status, user can attempt again
+
 ## Database Schema
 
 The system uses SQLite with two main tables:

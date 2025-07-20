@@ -18,7 +18,11 @@ class QuestsModule:
         id integer PRIMARY KEY,
         player text NOT NULL,
         description text NULL,
-        reward text NULL
+        reward text NULL,
+        status text DEFAULT 'pending',
+        completion_message_id text NULL,
+        completed_by text NULL,
+        completed_at timestamp NULL
     );"""
 
     def __init__(self):
@@ -91,7 +95,8 @@ class QuestsModule:
     def get_user_active_quests(self, player: str) -> List[Tuple]:
         """Get active quests for a player."""
         try:
-            sql = """SELECT * FROM quests WHERE player=? AND description IS NOT NULL AND reward IS NOT NULL"""
+            sql = """SELECT * FROM quests WHERE player=? AND description IS NOT NULL AND reward IS NOT NULL
+                     AND (status = 'active' OR status IS NULL OR status = 'pending')"""
             return self.conn.execute(sql, (player,)).fetchall()
         except sqlite3.Error as e:
             logger.error(f"Error getting active quests: {e}")
@@ -114,7 +119,7 @@ class QuestsModule:
             if not request_id:
                 return False
 
-            sql = """UPDATE quests SET description = ?, reward = ? WHERE id = ?"""
+            sql = """UPDATE quests SET description = ?, reward = ?, status = 'active' WHERE id = ?"""
             with self.conn:
                 self.conn.execute(sql, (description, reward, request_id))
 
@@ -123,6 +128,165 @@ class QuestsModule:
 
         except sqlite3.Error as e:
             logger.error(f"Error updating quest request: {e}")
+            return False
+
+    def mark_quest_as_completed(
+        self, quest_id: int, player: str, message_id: str
+    ) -> bool:
+        """Mark a quest as completed and awaiting approval."""
+        try:
+            sql = """UPDATE quests SET status = 'completed', completed_by = ?,
+                     completion_message_id = ?, completed_at = CURRENT_TIMESTAMP
+                     WHERE id = ?"""
+            with self.conn:
+                cursor = self.conn.execute(sql, (player, message_id, quest_id))
+
+            logger.info(f"Quest {quest_id} marked as completed by {player}")
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Error marking quest as completed: {e}")
+            return False
+
+    def get_quest_by_message_id(self, message_id: str) -> Optional[Tuple]:
+        """Get quest information by completion message ID."""
+        try:
+            sql = """SELECT id, player, description, reward, completed_by, status
+                     FROM quests WHERE completion_message_id = ?"""
+            return self.conn.execute(sql, (message_id,)).fetchone()
+        except sqlite3.Error as e:
+            logger.error(f"Error getting quest by message ID: {e}")
+            return None
+
+    def approve_quest(self, quest_id: int) -> bool:
+        """Approve a completed quest."""
+        try:
+            sql = """UPDATE quests SET status = 'approved' WHERE id = ?"""
+            with self.conn:
+                cursor = self.conn.execute(sql, (quest_id,))
+
+            logger.info(f"Quest {quest_id} approved")
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Error approving quest: {e}")
+            return False
+
+    def reject_quest(self, quest_id: int) -> bool:
+        """Reject a completed quest and mark as active again."""
+        try:
+            sql = """UPDATE quests SET status = 'active', completed_by = NULL,
+                     completion_message_id = NULL, completed_at = NULL
+                     WHERE id = ?"""
+            with self.conn:
+                cursor = self.conn.execute(sql, (quest_id,))
+
+            logger.info(f"Quest {quest_id} rejected and marked as active")
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Error rejecting quest: {e}")
+            return False
+
+    def get_quest_by_id_and_player(self, quest_id: int, player: str) -> Optional[Tuple]:
+        """Get a specific quest by ID and player."""
+        try:
+            sql = """SELECT id, player, description, reward, status
+                     FROM quests WHERE id = ? AND player = ? AND description IS NOT NULL AND reward IS NOT NULL"""
+            return self.conn.execute(sql, (quest_id, player)).fetchone()
+        except sqlite3.Error as e:
+            logger.error(f"Error getting quest: {e}")
+            return None
+
+    async def handle_quest_approval(self, bot, message_id: str, user_id: str) -> bool:
+        """Handle quest approval by admin."""
+        try:
+            quest = self.get_quest_by_message_id(message_id)
+            if not quest:
+                logger.warning(f"No quest found for message ID {message_id}")
+                return False
+
+            quest_id, original_player, description, reward, completed_by, status = quest
+
+            if status != "completed":
+                logger.warning(f"Quest {quest_id} is not in completed status")
+                return False
+
+            # Approve the quest
+            if self.approve_quest(quest_id):
+                # Send notification to the user
+                try:
+                    user = await bot.fetch_user(int(completed_by))
+                    if user:
+                        import discord
+
+                        embed = discord.Embed(
+                            title="🎉 ¡Misión cumplida!",
+                            description=f"Has cumplido los requisitos de la misión.",
+                            color=discord.Color.green(),
+                        )
+                        embed.add_field(name="Misión", value=description, inline=False)
+                        embed.add_field(name="Recompensa", value=reward, inline=False)
+                        embed.set_footer(text="¡Felicidades por completar la misión!")
+
+                        await user.send(embed=embed)
+                        logger.info(
+                            f"Approval notification sent to user {completed_by}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending approval notification: {e}")
+
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error handling quest approval: {e}")
+            return False
+
+    async def handle_quest_rejection(self, bot, message_id: str, user_id: str) -> bool:
+        """Handle quest rejection by admin."""
+        try:
+            quest = self.get_quest_by_message_id(message_id)
+            if not quest:
+                logger.warning(f"No quest found for message ID {message_id}")
+                return False
+
+            quest_id, original_player, description, reward, completed_by, status = quest
+
+            if status != "completed":
+                logger.warning(f"Quest {quest_id} is not in completed status")
+                return False
+
+            # Reject the quest (reset to active)
+            if self.reject_quest(quest_id):
+                # Send notification to the user
+                try:
+                    user = await bot.fetch_user(int(completed_by))
+                    if user:
+                        import discord
+
+                        embed = discord.Embed(
+                            title="❌ Misión sin cumplir",
+                            description=f"No has cumplido los requisitos de la misión.",
+                            color=discord.Color.red(),
+                        )
+                        embed.add_field(name="Misión", value=description, inline=False)
+                        embed.add_field(name="Recompensa", value=reward, inline=False)
+                        embed.set_footer(
+                            text="La misión se te ha vuelto a asignar. Puedes intentar completarla de nuevo."
+                        )
+
+                        await user.send(embed=embed)
+                        logger.info(
+                            f"Rejection notification sent to user {completed_by}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending rejection notification: {e}")
+
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error handling quest rejection: {e}")
             return False
 
     async def handle_request_command(self, ctx):
@@ -227,6 +391,24 @@ class QuestsModule:
 
             player = ctx.user.name
 
+            # Extract quest ID from the mission string (format: "ID: Description")
+            try:
+                quest_id = int(misión.split(":")[0])
+            except (ValueError, IndexError):
+                await ctx.followup.send(
+                    "Formato de misión inválido. Usa el autocompletado para seleccionar una misión.",
+                    ephemeral=True,
+                )
+                return
+
+            # Verify the quest belongs to the user and is active
+            quest = self.get_quest_by_id_and_player(quest_id, player)
+            if not quest:
+                await ctx.followup.send(
+                    "No se encontró esa misión o no te pertenece.", ephemeral=True
+                )
+                return
+
             # Get the last message in the channel
             last_message = await ctx.channel.history(limit=1).flatten()
             if last_message:
@@ -248,18 +430,27 @@ class QuestsModule:
                 if channel:
                     embed = discord.Embed(
                         title="Misión completada",
-                        description=f"{player} ha completado la misión «{misión}».\n\n[Enlace al último mensaje]({last_message_link})",
+                        description=f"**Jugador:** {player}\n**Misión:** {quest[2]}\n**Recompensa:** {quest[3]}\n\n[Enlace al último mensaje]({last_message_link})",
+                        color=discord.Color.orange(),
                     )
+                    embed.set_footer(text=f"Quest ID: {quest_id}")
                     message = await channel.send(embed=embed)
                     await message.add_reaction("✅")  # Checkmark reaction
                     await message.add_reaction("❌")  # Cross reaction
 
-                await ctx.followup.send("Misión completada.", ephemeral=True)
-                logger.info(f"Quest completed by {player}: {misión}")
+                    # Mark quest as completed in database
+                    self.mark_quest_as_completed(
+                        quest_id, str(ctx.user.id), str(message.id)
+                    )
+
+                await ctx.followup.send(
+                    "Misión enviada para aprobación.", ephemeral=True
+                )
+                logger.info(f"Quest {quest_id} completed by {player}: {quest[2]}")
             except Exception as e:
                 logger.error(f"Error sending completion notification: {e}")
                 await ctx.followup.send(
-                    "Misión marcada como completada, pero no se pudo enviar la notificación.",
+                    "Error al enviar la notificación de misión completada.",
                     ephemeral=True,
                 )
 
