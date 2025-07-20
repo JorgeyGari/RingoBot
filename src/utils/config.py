@@ -30,6 +30,7 @@ class Config:
 
     # Database Configuration
     QUEST_DB_PATH = "data/quests.db"
+    CHARACTER_DB_PATH = "data/characters.db"
 
     # File Paths
     DATA_DIR = "data"

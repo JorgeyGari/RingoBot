@@ -5,6 +5,7 @@ Main RingoBot class that manages the Discord bot and its modules.
 import discord
 import logging
 import sys
+from datetime import datetime
 from typing import Optional, List
 
 from utils.config import config
@@ -13,6 +14,7 @@ from modules.dice import DiceModule
 from modules.music import MusicModule
 from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
+from modules.characters import CharactersModule
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ class RingoBot:
         self.music_module = MusicModule()
         self.discape_module = DiscapeModule()
         self.quests_module = QuestsModule()
+        self.characters_module = CharactersModule()
 
         # Register event handlers
         self._register_events()
@@ -260,6 +263,392 @@ class RingoBot:
         async def completar(ctx: discord.ApplicationContext, misión: str):
             """Completa una misión."""
             await self.quests_module.handle_complete_command(ctx, misión)
+
+        # Character command group
+        character = self.bot.create_group(
+            "personaje", "Comandos para gestión de personajes y PC"
+        )
+
+        @character.command(
+            name="registrar", description="Registra tu personaje en el sistema."
+        )
+        @discord.option("nombre", description="Nombre de tu personaje.", required=True)
+        async def registrar(ctx: discord.ApplicationContext, nombre: str):
+            """Registra un nuevo personaje."""
+            await self._handle_register_character(ctx, nombre)
+
+        @character.command(name="ver", description="Ve la información de tu personaje.")
+        async def ver(ctx: discord.ApplicationContext):
+            """Ve la información de tu personaje."""
+            await self._handle_view_character(ctx)
+
+        @character.command(
+            name="ranking", description="Ve el ranking de personajes por PC."
+        )
+        @discord.option(
+            "límite",
+            description="Número de personajes a mostrar (por defecto: 10).",
+            required=False,
+            default=10,
+        )
+        async def ranking(ctx: discord.ApplicationContext, límite: int):
+            """Ve el ranking de personajes por PC."""
+            await self._handle_leaderboard(ctx, límite)
+
+        @character.command(
+            name="historial", description="Ve el historial de cambios de PC."
+        )
+        async def historial(ctx: discord.ApplicationContext):
+            """Ve el historial de cambios de PC."""
+            await self._handle_point_history(ctx)
+
+        # Admin commands for managing PC
+        admin = self.bot.create_group("admin", "Comandos administrativos")
+
+        @admin.command(name="dar-pc", description="[ADMIN] Dar PC a un personaje.")
+        @discord.option("usuario", description="Usuario al que dar PC.", required=True)
+        @discord.option("cantidad", description="Cantidad de PC a dar.", required=True)
+        @discord.option(
+            "razón", description="Razón para dar los PC.", required=False, default=""
+        )
+        async def dar_pc(
+            ctx: discord.ApplicationContext,
+            usuario: discord.Member,
+            cantidad: int,
+            razón: str,
+        ):
+            """[ADMIN] Dar PC a un personaje."""
+            await self._handle_give_points(ctx, usuario, cantidad, razón)
+
+        @admin.command(
+            name="quitar-pc", description="[ADMIN] Quitar PC a un personaje."
+        )
+        @discord.option(
+            "usuario", description="Usuario al que quitar PC.", required=True
+        )
+        @discord.option(
+            "cantidad", description="Cantidad de PC a quitar.", required=True
+        )
+        @discord.option(
+            "razón", description="Razón para quitar los PC.", required=False, default=""
+        )
+        async def quitar_pc(
+            ctx: discord.ApplicationContext,
+            usuario: discord.Member,
+            cantidad: int,
+            razón: str,
+        ):
+            """[ADMIN] Quitar PC a un personaje."""
+            await self._handle_remove_points(ctx, usuario, cantidad, razón)
+
+        @admin.command(
+            name="borrar-personaje", description="[ADMIN] Borrar un personaje."
+        )
+        @discord.option(
+            "usuario", description="Usuario cuyo personaje borrar.", required=True
+        )
+        async def borrar_personaje(
+            ctx: discord.ApplicationContext, usuario: discord.Member
+        ):
+            """[ADMIN] Borrar un personaje."""
+            await self._handle_delete_character(ctx, usuario)
+
+    async def _handle_register_character(
+        self, ctx: discord.ApplicationContext, nombre: str
+    ):
+        """Handle character registration."""
+        discord_id = str(ctx.author.id)
+        guild_id = str(ctx.guild.id) if ctx.guild else None
+
+        # Check if character already exists
+        existing_character = self.characters_module.get_character(discord_id)
+        if existing_character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description=f"Ya tienes un personaje registrado: **{existing_character[2]}**",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Register new character
+        if self.characters_module.register_character(discord_id, nombre, guild_id):
+            embed = discord.Embed(
+                title="✅ Personaje Registrado",
+                description=f"**{nombre}** ha sido registrado exitosamente con 0 PC.",
+                color=discord.Color.green(),
+            )
+            embed.set_footer(text="Usa /personaje ver para ver tu información.")
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al registrar tu personaje. Inténtalo de nuevo.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
+    async def _handle_view_character(self, ctx: discord.ApplicationContext):
+        """Handle viewing character information."""
+        discord_id = str(ctx.author.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description="No tienes un personaje registrado. Usa `/personaje registrar` para crear uno.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        _, _, name, points, _, created_at, updated_at = character
+
+        embed = discord.Embed(
+            title="📋 Información del Personaje", color=discord.Color.blue()
+        )
+        embed.add_field(name="Nombre", value=name, inline=True)
+        embed.add_field(name="PC Actuales", value=f"{points} PC", inline=True)
+        embed.add_field(
+            name="Registrado",
+            value=f"<t:{int(datetime.fromisoformat(created_at).timestamp())}:R>",
+            inline=False,
+        )
+        embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else None)
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_leaderboard(self, ctx: discord.ApplicationContext, limit: int):
+        """Handle leaderboard display."""
+        guild_id = str(ctx.guild.id) if ctx.guild else None
+        leaderboard = self.characters_module.get_leaderboard(guild_id, min(limit, 20))
+
+        if not leaderboard:
+            embed = discord.Embed(
+                title="📊 Ranking de PC",
+                description="No hay personajes registrados aún.",
+                color=discord.Color.orange(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        embed = discord.Embed(title="📊 Ranking de PC", color=discord.Color.gold())
+
+        description = ""
+        for i, (name, points, discord_id) in enumerate(leaderboard, 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            try:
+                user = await self.bot.fetch_user(int(discord_id))
+                username = user.display_name
+            except:
+                username = "Usuario desconocido"
+
+            description += f"{medal} **{name}** ({username}) - {points} PC\n"
+
+        embed.description = description
+        await ctx.respond(embed=embed)
+
+    async def _handle_point_history(self, ctx: discord.ApplicationContext):
+        """Handle point history display."""
+        discord_id = str(ctx.author.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description="No tienes un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        history = self.characters_module.get_point_history(discord_id, 10)
+
+        embed = discord.Embed(
+            title=f"📈 Historial de PC - {character[2]}", color=discord.Color.purple()
+        )
+
+        if not history:
+            embed.description = "No hay historial de cambios de PC."
+        else:
+            description = ""
+            for points_change, reason, admin_id, timestamp in history:
+                sign = "+" if points_change > 0 else ""
+                date = f"<t:{int(datetime.fromisoformat(timestamp).timestamp())}:R>"
+                admin_text = f" (por <@{admin_id}>)" if admin_id else ""
+                reason_text = f" - {reason}" if reason else ""
+                description += (
+                    f"{sign}{points_change} PC{admin_text}{reason_text} {date}\n"
+                )
+
+            embed.description = description
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_give_points(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Member,
+        amount: int,
+        reason: str,
+    ):
+        """Handle giving points to a character (admin only)."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description=f"{user.mention} no tiene un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        if amount <= 0:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="La cantidad debe ser mayor a 0.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        admin_id = str(ctx.author.id)
+        if self.characters_module.update_points(discord_id, amount, reason, admin_id):
+            updated_character = self.characters_module.get_character(discord_id)
+            new_points = updated_character[3]
+
+            embed = discord.Embed(
+                title="✅ PC Otorgados",
+                description=f"Se han dado **{amount} PC** a **{character[2]}** ({user.mention})",
+                color=discord.Color.green(),
+            )
+            embed.add_field(name="PC Totales", value=f"{new_points} PC", inline=True)
+            if reason:
+                embed.add_field(name="Razón", value=reason, inline=False)
+
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al otorgar los PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
+    async def _handle_remove_points(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Member,
+        amount: int,
+        reason: str,
+    ):
+        """Handle removing points from a character (admin only)."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description=f"{user.mention} no tiene un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        if amount <= 0:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="La cantidad debe ser mayor a 0.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        admin_id = str(ctx.author.id)
+        if self.characters_module.update_points(discord_id, -amount, reason, admin_id):
+            updated_character = self.characters_module.get_character(discord_id)
+            new_points = updated_character[3]
+
+            embed = discord.Embed(
+                title="✅ PC Removidos",
+                description=f"Se han quitado **{amount} PC** a **{character[2]}** ({user.mention})",
+                color=discord.Color.orange(),
+            )
+            embed.add_field(name="PC Totales", value=f"{new_points} PC", inline=True)
+            if reason:
+                embed.add_field(name="Razón", value=reason, inline=False)
+
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al quitar los PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
+    async def _handle_delete_character(
+        self, ctx: discord.ApplicationContext, user: discord.Member
+    ):
+        """Handle deleting a character (admin only)."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description=f"{user.mention} no tiene un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        if self.characters_module.delete_character(discord_id):
+            embed = discord.Embed(
+                title="✅ Personaje Eliminado",
+                description=f"El personaje **{character[2]}** de {user.mention} ha sido eliminado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al eliminar el personaje.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
 
     def _get_investigation_options(self, ctx: discord.AutocompleteContext) -> List[str]:
         """Get autocomplete options for investigation command."""
