@@ -150,7 +150,8 @@ class DiscapeModule:
             else:
                 ws.cell(row=player_row + 1, column=self.CHAR_PATH_COL + 1, value=path)
 
-            self.wb.save(config.DISCAPE_FILE)
+            with self.save_lock:
+                self.wb.save(config.DISCAPE_FILE)
             logger.info(f"Updated player {player} location to {location}, path: {path}")
         except Exception as e:
             logger.error(f"Error updating player location: {e}")
