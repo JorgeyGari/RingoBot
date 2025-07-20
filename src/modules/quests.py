@@ -24,19 +24,34 @@ class QuestsModule:
     def __init__(self):
         """Initialize the quests module."""
         self.db_path = config.QUEST_DB_PATH
+        self.connection_pool = self._initialize_connection_pool()
         self._create_table()
 
-    def _create_connection(self) -> Optional[sqlite3.Connection]:
-        """Create database connection."""
-        try:
+    def _initialize_connection_pool(self) -> "queue.Queue":
+        """Initialize a connection pool."""
+        from queue import Queue
+        pool = Queue(maxsize=10)  # Adjust pool size as needed
+        for _ in range(pool.maxsize):
             conn = sqlite3.connect(self.db_path, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
-            logger.info(f"Connected to quest database: {self.db_path}")
-            return conn
-        except sqlite3.Error as e:
-            logger.error(f"Error connecting to database: {e}")
+            pool.put(conn)
+        logger.info("Connection pool initialized")
+        return pool
+
+    def _create_connection(self) -> Optional[sqlite3.Connection]:
+        """Fetch a connection from the pool."""
+        try:
+            return self.connection_pool.get(timeout=5)  # Adjust timeout as needed
+        except Exception as e:
+            logger.error(f"Error fetching connection from pool: {e}")
             return None
 
+    def _release_connection(self, conn: sqlite3.Connection) -> None:
+        """Return a connection to the pool."""
+        try:
+            self.connection_pool.put(conn, timeout=5)  # Adjust timeout as needed
+        except Exception as e:
+            logger.error(f"Error returning connection to pool: {e}")
     def _create_table(self) -> None:
         """Create the quests table if it doesn't exist."""
         conn = self._create_connection()
