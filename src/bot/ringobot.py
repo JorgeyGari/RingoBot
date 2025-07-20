@@ -15,6 +15,7 @@ from modules.music import MusicModule
 from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
 from modules.characters import CharactersModule
+from modules.gacha import GachaModule
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class RingoBot:
         self.discape_module = DiscapeModule()
         self.quests_module = QuestsModule()
         self.characters_module = CharactersModule()
+        self.gacha_module = GachaModule()
 
         # Register event handlers
         self._register_events()
@@ -505,6 +507,67 @@ class RingoBot:
             await self._handle_modify_character(
                 ctx, usuario, nuevo_nombre, nueva_imagen
             )
+
+        # Gacha command group
+        gacha = self.bot.create_group("gacha", "Comandos para el sistema de premios")
+
+        @gacha.command(name="roll", description="Hacer una tirada individual (10 PC).")
+        async def roll(ctx: discord.ApplicationContext):
+            """Hacer una tirada individual."""
+            await self._handle_single_roll(ctx)
+
+        @gacha.command(
+            name="roll5",
+            description="Hacer 5 tiradas con garantía de objeto raro+ (50 PC).",
+        )
+        async def roll5(ctx: discord.ApplicationContext):
+            """Hacer 5 tiradas con garantía de objeto raro+."""
+            await self._handle_multi_roll_5(ctx)
+
+        @gacha.command(
+            name="roll10",
+            description="Hacer 10 tiradas con garantía de objeto legendario (100 PC).",
+        )
+        async def roll10(ctx: discord.ApplicationContext):
+            """Hacer 10 tiradas con garantía de objeto legendario."""
+            await self._handle_multi_roll_10(ctx)
+
+        @gacha.command(name="inventario", description="Ver tu inventario de objetos.")
+        async def inventario(ctx: discord.ApplicationContext):
+            """Ver tu inventario de objetos."""
+            await self._handle_view_inventory(ctx)
+
+        @gacha.command(
+            name="objeto", description="Ver información detallada de un objeto."
+        )
+        @discord.option(
+            "nombre", description="Nombre del objeto a consultar.", required=True
+        )
+        async def objeto(ctx: discord.ApplicationContext, nombre: str):
+            """Ver información detallada de un objeto."""
+            await self._handle_view_item(ctx, nombre)
+
+        @gacha.command(
+            name="premios", description="Ver lista de premios disponibles por rareza."
+        )
+        @discord.option(
+            "rareza",
+            description="Rareza de los premios (1=Común, 2=Raro, 3=Legendario).",
+            required=False,
+            choices=[
+                discord.OptionChoice("Común", 1),
+                discord.OptionChoice("Raro", 2),
+                discord.OptionChoice("Legendario", 3),
+            ],
+        )
+        async def premios(ctx: discord.ApplicationContext, rareza: int = None):
+            """Ver lista de premios disponibles por rareza."""
+            await self._handle_view_prizes(ctx, rareza)
+
+        @gacha.command(name="historial", description="Ver tu historial de tiradas.")
+        async def historial_gacha(ctx: discord.ApplicationContext):
+            """Ver tu historial de tiradas."""
+            await self._handle_roll_history(ctx)
 
     async def _handle_register_character(
         self, ctx: discord.ApplicationContext, nombre: str
@@ -1121,6 +1184,489 @@ class RingoBot:
         except Exception as e:
             logger.error(f"Error getting pending quest users: {e}")
             return []
+
+    # Gacha command handlers
+    async def _handle_single_roll(self, ctx: discord.ApplicationContext):
+        """Handle single gacha roll."""
+        discord_id = str(ctx.author.id)
+
+        # Check if user has a character
+        character = self.characters_module.get_character(discord_id)
+        if not character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Necesitas tener un personaje registrado para usar el gacha.\nUsa `/personaje registrar` para crear uno.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        character_name = character[2]  # character_name is at index 2
+        current_points = character[3]  # points at index 3
+
+        # Check if user has enough points
+        if current_points < self.gacha_module.SINGLE_ROLL_COST:
+            embed = discord.Embed(
+                title="❌ PC insuficientes",
+                description=f"Necesitas {self.gacha_module.SINGLE_ROLL_COST} PC para hacer una tirada.\nTienes {current_points} PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Deduct points
+        if not self.characters_module.update_points(
+            discord_id, -self.gacha_module.SINGLE_ROLL_COST, "Tirada individual gacha"
+        ):
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Error al procesar el pago. Inténtalo de nuevo.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Perform roll
+        result = self.gacha_module.single_roll(character_name)
+
+        # Add items to inventory
+        if not self.gacha_module.add_items_to_inventory(discord_id, result.prizes):
+            # Refund points if inventory update fails
+            self.characters_module.update_points(
+                discord_id,
+                self.gacha_module.SINGLE_ROLL_COST,
+                "Reembolso por error en gacha",
+            )
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Error al agregar objetos al inventario. Se ha reembolsado tu PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Record roll history
+        self.gacha_module.record_roll_history(discord_id, result)
+
+        # Create response embed
+        prize = result.prizes[0]
+        rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+        rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+
+        embed = discord.Embed(
+            title="🎲 Tirada Individual",
+            description=f"**{character_name}** ha gastado {result.cost} PC",
+            color=discord.Color.blue(),
+        )
+
+        embed.add_field(
+            name=f"{rarity_emoji[prize.rareness]} {prize.name}",
+            value=f"*{rarity_names[prize.rareness]}*\n{prize.description}",
+            inline=False,
+        )
+
+        # Update points display
+        new_points = current_points - result.cost
+        embed.set_footer(text=f"PC restantes: {new_points}")
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_multi_roll_5(self, ctx: discord.ApplicationContext):
+        """Handle 5-roll gacha with rare+ guarantee."""
+        discord_id = str(ctx.author.id)
+
+        # Check if user has a character
+        character = self.characters_module.get_character(discord_id)
+        if not character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Necesitas tener un personaje registrado para usar el gacha.\nUsa `/personaje registrar` para crear uno.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        character_name = character[2]
+        current_points = character[3]
+
+        # Check if user has enough points
+        if current_points < self.gacha_module.MULTI_ROLL_5_COST:
+            embed = discord.Embed(
+                title="❌ PC insuficientes",
+                description=f"Necesitas {self.gacha_module.MULTI_ROLL_5_COST} PC para hacer 5 tiradas.\nTienes {current_points} PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Deduct points
+        if not self.characters_module.update_points(
+            discord_id, -self.gacha_module.MULTI_ROLL_5_COST, "5 tiradas gacha"
+        ):
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Error al procesar el pago. Inténtalo de nuevo.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Perform roll
+        result = self.gacha_module.multi_roll_5(character_name)
+
+        # Add items to inventory
+        if not self.gacha_module.add_items_to_inventory(discord_id, result.prizes):
+            # Refund points if inventory update fails
+            self.characters_module.update_points(
+                discord_id,
+                self.gacha_module.MULTI_ROLL_5_COST,
+                "Reembolso por error en gacha",
+            )
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Error al agregar objetos al inventario. Se ha reembolsado tu PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Record roll history
+        self.gacha_module.record_roll_history(discord_id, result)
+
+        # Create response embed
+        rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+        rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+
+        embed = discord.Embed(
+            title="🎲 5 Tiradas",
+            description=f"**{character_name}** ha gastado {result.cost} PC",
+            color=discord.Color.green(),
+        )
+
+        if result.guaranteed_used:
+            embed.description += "\n✨ **Garantía de objeto raro activada**"
+
+        # Add each prize
+        for i, prize in enumerate(result.prizes, 1):
+            embed.add_field(
+                name=f"{i}. {rarity_emoji[prize.rareness]} {prize.name}",
+                value=f"*{rarity_names[prize.rareness]}*",
+                inline=True,
+            )
+
+        # Update points display
+        new_points = current_points - result.cost
+        embed.set_footer(text=f"PC restantes: {new_points}")
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_multi_roll_10(self, ctx: discord.ApplicationContext):
+        """Handle 10-roll gacha with legendary guarantee."""
+        discord_id = str(ctx.author.id)
+
+        # Check if user has a character
+        character = self.characters_module.get_character(discord_id)
+        if not character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Necesitas tener un personaje registrado para usar el gacha.\nUsa `/personaje registrar` para crear uno.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        character_name = character[2]
+        current_points = character[3]
+
+        # Check if user has enough points
+        if current_points < self.gacha_module.MULTI_ROLL_10_COST:
+            embed = discord.Embed(
+                title="❌ PC insuficientes",
+                description=f"Necesitas {self.gacha_module.MULTI_ROLL_10_COST} PC para hacer 10 tiradas.\nTienes {current_points} PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Deduct points
+        if not self.characters_module.update_points(
+            discord_id, -self.gacha_module.MULTI_ROLL_10_COST, "10 tiradas gacha"
+        ):
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Error al procesar el pago. Inténtalo de nuevo.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Perform roll
+        result = self.gacha_module.multi_roll_10(character_name)
+
+        # Add items to inventory
+        if not self.gacha_module.add_items_to_inventory(discord_id, result.prizes):
+            # Refund points if inventory update fails
+            self.characters_module.update_points(
+                discord_id,
+                self.gacha_module.MULTI_ROLL_10_COST,
+                "Reembolso por error en gacha",
+            )
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Error al agregar objetos al inventario. Se ha reembolsado tu PC.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Record roll history
+        self.gacha_module.record_roll_history(discord_id, result)
+
+        # Create response embed
+        rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+        rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+
+        embed = discord.Embed(
+            title="🎲 10 Tiradas",
+            description=f"**{character_name}** ha gastado {result.cost} PC",
+            color=discord.Color.gold(),
+        )
+
+        if result.guaranteed_used:
+            embed.description += "\n🌟 **Garantía de objeto legendario activada**"
+
+        # Group prizes by rarity for better display
+        rarity_groups = {1: [], 2: [], 3: []}
+        for prize in result.prizes:
+            rarity_groups[prize.rareness].append(prize)
+
+        # Display by rarity
+        for rarity in [3, 2, 1]:  # Show legendaries first
+            if rarity_groups[rarity]:
+                items_text = ", ".join([prize.name for prize in rarity_groups[rarity]])
+                embed.add_field(
+                    name=f"{rarity_emoji[rarity]} {rarity_names[rarity]} ({len(rarity_groups[rarity])})",
+                    value=items_text,
+                    inline=False,
+                )
+
+        # Update points display
+        new_points = current_points - result.cost
+        embed.set_footer(text=f"PC restantes: {new_points}")
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_view_inventory(self, ctx: discord.ApplicationContext):
+        """Handle viewing user inventory."""
+        discord_id = str(ctx.author.id)
+
+        # Check if user has a character
+        character = self.characters_module.get_character(discord_id)
+        if not character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Necesitas tener un personaje registrado para ver tu inventario.\nUsa `/personaje registrar` para crear uno.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        inventory = self.gacha_module.get_user_inventory(discord_id)
+
+        if not inventory:
+            embed = discord.Embed(
+                title="📦 Inventario",
+                description="Tu inventario está vacío.\nUsa `/gacha roll` para obtener objetos.",
+                color=discord.Color.blue(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title=f"📦 Inventario de {character[2]}",
+            color=discord.Color.blue(),
+        )
+
+        # Group items by rarity for better display
+        rarity_groups = {1: [], 2: [], 3: []}
+        for item_name, quantity, _ in inventory:
+            prize_info = self.gacha_module.get_prize_info(item_name)
+            if prize_info:
+                rarity_groups[prize_info.rareness].append((item_name, quantity))
+
+        rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+        rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+
+        # Display by rarity
+        for rarity in [3, 2, 1]:  # Show legendaries first
+            if rarity_groups[rarity]:
+                items_text = "\n".join(
+                    [f"• **{name}** (x{qty})" for name, qty in rarity_groups[rarity]]
+                )
+                embed.add_field(
+                    name=f"{rarity_emoji[rarity]} {rarity_names[rarity]}",
+                    value=items_text,
+                    inline=False,
+                )
+
+        total_items = sum(qty for _, qty, _ in inventory)
+        embed.set_footer(text=f"Total de objetos: {total_items}")
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_view_item(self, ctx: discord.ApplicationContext, item_name: str):
+        """Handle viewing item details."""
+        prize = self.gacha_module.get_prize_info(item_name)
+
+        if not prize:
+            embed = discord.Embed(
+                title="❌ Error",
+                description=f"No se encontró información sobre el objeto: **{item_name}**",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+        rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+        rarity_colors = {
+            1: discord.Color.light_grey(),
+            2: discord.Color.gold(),
+            3: discord.Color.purple(),
+        }
+
+        embed = discord.Embed(
+            title=f"{rarity_emoji[prize.rareness]} {prize.name}",
+            description=prize.description,
+            color=rarity_colors[prize.rareness],
+        )
+
+        embed.add_field(name="Rareza", value=rarity_names[prize.rareness], inline=True)
+
+        if prize.special_character:
+            embed.add_field(
+                name="Objeto especial",
+                value=f"Relacionado con **{prize.special_character}**",
+                inline=True,
+            )
+
+        await ctx.respond(embed=embed)
+
+    async def _handle_view_prizes(
+        self, ctx: discord.ApplicationContext, rarity: int = None
+    ):
+        """Handle viewing available prizes."""
+        if rarity is not None:
+            prizes = self.gacha_module.get_prizes_by_rarity(rarity)
+            if not prizes:
+                embed = discord.Embed(
+                    title="❌ Error",
+                    description=f"No hay premios de rareza {rarity}.",
+                    color=discord.Color.red(),
+                )
+                await ctx.respond(embed=embed)
+                return
+
+            rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+            rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+            rarity_colors = {
+                1: discord.Color.light_grey(),
+                2: discord.Color.gold(),
+                3: discord.Color.purple(),
+            }
+
+            embed = discord.Embed(
+                title=f"{rarity_emoji[rarity]} Premios {rarity_names[rarity]}",
+                color=rarity_colors[rarity],
+            )
+
+            for prize in prizes:
+                special_text = (
+                    f" *(Especial de {prize.special_character})*"
+                    if prize.special_character
+                    else ""
+                )
+                embed.add_field(
+                    name=prize.name,
+                    value=f"{prize.description}{special_text}",
+                    inline=False,
+                )
+        else:
+            # Show all prizes grouped by rarity
+            embed = discord.Embed(
+                title="🎁 Lista de Premios",
+                description="Todos los premios disponibles en el gacha",
+                color=discord.Color.blue(),
+            )
+
+            rarity_emoji = {1: "⚪", 2: "🟡", 3: "🟣"}
+            rarity_names = {1: "Común", 2: "Raro", 3: "Legendario"}
+
+            for rarity in [1, 2, 3]:
+                prizes = self.gacha_module.get_prizes_by_rarity(rarity)
+                if prizes:
+                    items_text = "\n".join(
+                        [
+                            f"• **{prize.name}**{' *(Especial)*' if prize.special_character else ''}"
+                            for prize in prizes
+                        ]
+                    )
+                    embed.add_field(
+                        name=f"{rarity_emoji[rarity]} {rarity_names[rarity]} ({len(prizes)} objetos)",
+                        value=items_text,
+                        inline=False,
+                    )
+
+        embed.set_footer(text="Usa /gacha objeto <nombre> para ver detalles")
+        await ctx.respond(embed=embed)
+
+    async def _handle_roll_history(self, ctx: discord.ApplicationContext):
+        """Handle viewing roll history."""
+        discord_id = str(ctx.author.id)
+
+        # Check if user has a character
+        character = self.characters_module.get_character(discord_id)
+        if not character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Necesitas tener un personaje registrado para ver tu historial.\nUsa `/personaje registrar` para crear uno.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        history = self.gacha_module.get_roll_history(discord_id, 10)
+
+        if not history:
+            embed = discord.Embed(
+                title="📜 Historial de Tiradas",
+                description="No tienes tiradas registradas aún.\nUsa `/gacha roll` para hacer tu primera tirada.",
+                color=discord.Color.blue(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title=f"📜 Historial de Tiradas de {character[2]}",
+            description="Últimas 10 tiradas",
+            color=discord.Color.blue(),
+        )
+
+        roll_type_names = {
+            "single": "Tirada individual",
+            "multi5": "5 tiradas",
+            "multi10": "10 tiradas",
+        }
+
+        for roll_type, cost, items, timestamp in history:
+            type_name = roll_type_names.get(roll_type, roll_type)
+            embed.add_field(
+                name=f"{type_name} (-{cost} PC)",
+                value=f"{items}\n*{timestamp}*",
+                inline=False,
+            )
+
+        await ctx.respond(embed=embed)
 
     def run(self):
         """Start the bot."""
