@@ -314,6 +314,17 @@ class RingoBot:
             """Completa una misión."""
             await self.quests_module.handle_complete_command(ctx, misión)
 
+        @mission.command(name="abandonar", description="Abandona una misión asignada.")
+        @discord.option(
+            "misión",
+            description="Misión que quieres abandonar.",
+            autocomplete=discord.utils.basic_autocomplete(self._get_quest_options),
+            required=True,
+        )
+        async def abandonar(ctx: discord.ApplicationContext, misión: str):
+            """Abandona una misión."""
+            await self.quests_module.handle_abandon_command(ctx, misión)
+
         # Character command group
         character = self.bot.create_group(
             "personaje", "Comandos para gestión de personajes y PC"

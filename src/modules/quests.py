@@ -289,6 +289,56 @@ class QuestsModule:
         finally:
             conn.close()
 
+    def abandon_quest(self, quest_id: int, player: str) -> bool:
+        """Allow a player to abandon/give up on an active quest."""
+        conn = self._create_connection()
+        if not conn:
+            return False
+
+        try:
+            cursor = conn.cursor()
+
+            # Verify the quest belongs to the player and is active
+            cursor.execute(
+                """
+                SELECT id, status FROM quests 
+                WHERE id = ? AND player = ? AND description IS NOT NULL AND reward IS NOT NULL
+            """,
+                (quest_id, player),
+            )
+            quest_data = cursor.fetchone()
+
+            if not quest_data:
+                logger.warning(
+                    f"Quest {quest_id} not found or doesn't belong to {player}"
+                )
+                return False
+
+            quest_status = quest_data[1]
+            if quest_status not in ["active", "pending", None]:
+                logger.warning(
+                    f"Quest {quest_id} cannot be abandoned - current status: {quest_status}"
+                )
+                return False
+
+            # Mark the quest as abandoned instead of deleting
+            cursor.execute(
+                """
+                UPDATE quests SET status = 'abandoned', completed_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            """,
+                (quest_id,),
+            )
+            conn.commit()
+
+            logger.info(f"Quest {quest_id} abandoned by {player}")
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            logger.error(f"Error abandoning quest: {e}")
+            return False
+        finally:
+            conn.close()
+
     async def handle_quest_approval(self, bot, message_id: str, user_id: str) -> bool:
         """Handle quest approval by admin."""
         try:
@@ -551,6 +601,64 @@ class QuestsModule:
         except Exception as e:
             logger.error(f"Error in handle_complete_command: {e}")
             await ctx.followup.send("Error al completar la misión.", ephemeral=True)
+
+    async def handle_abandon_command(self, ctx, misión: str):
+        """Handle the quest abandonment command."""
+        try:
+            await ctx.defer()
+
+            player = ctx.user.name
+
+            # Extract quest ID from the mission string (format: "ID: Description")
+            try:
+                quest_id = int(misión.split(":")[0])
+            except (ValueError, IndexError):
+                await ctx.followup.send(
+                    "Formato de misión inválido. Usa el autocompletado para seleccionar una misión.",
+                    ephemeral=True,
+                )
+                return
+
+            # Verify the quest belongs to the user and can be abandoned
+            quest = self.get_quest_by_id_and_player(quest_id, player)
+            if not quest:
+                await ctx.followup.send(
+                    "No se encontró esa misión o no te pertenece.", ephemeral=True
+                )
+                return
+
+            quest_status = quest[4] if len(quest) > 4 else "active"
+            if quest_status in ["completed", "approved"]:
+                await ctx.followup.send(
+                    "No puedes abandonar una misión que ya has completado.",
+                    ephemeral=True,
+                )
+                return
+
+            # Abandon the quest
+            success = self.abandon_quest(quest_id, player)
+            if success:
+                import discord
+
+                embed = discord.Embed(
+                    title="🏳️ Misión abandonada",
+                    description=f"Has abandonado la misión: **{quest[2]}**",
+                    color=discord.Color.orange(),
+                )
+                embed.set_footer(
+                    text="Puedes solicitar nuevas misiones cuando quieras."
+                )
+
+                await ctx.followup.send(embed=embed, ephemeral=True)
+                logger.info(f"Quest {quest_id} abandoned by {player}: {quest[2]}")
+            else:
+                await ctx.followup.send(
+                    "Error al abandonar la misión. Inténtalo de nuevo.", ephemeral=True
+                )
+
+        except Exception as e:
+            logger.error(f"Error in handle_abandon_command: {e}")
+            await ctx.followup.send("Error al abandonar la misión.", ephemeral=True)
 
     def get_quest_options_for_player(self, player: str) -> List[str]:
         """Get quest options for autocomplete."""
