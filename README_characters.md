@@ -12,10 +12,18 @@ The quest system now includes an approval workflow:
 
 1. **Quest Assignment**: Admins create quests for users
 2. **Quest Completion**: Users complete quests using `/misión completar`
-3. **Admin Review**: Completion notifications are sent to a dedicated channel with reaction buttons
-4. **Approval/Rejection**: Admins can react with ✅ (approve) or ❌ (reject)
+3. **Quest Abandonment**: Users can abandon quests using `/misión abandonar`
+4. **Admin Review**: Completion notifications are sent to a dedicated channel with reaction buttons
+5. **Approval/Rejection**: Admins can react with ✅ (approve) or ❌ (reject)
    - **✅ Approval**: User receives congratulatory message with reward details
    - **❌ Rejection**: Quest is reset to active status, user can attempt again
+
+### Quest Commands
+
+- **`/misión solicitar`**: Request a new mission from admins
+- **`/misión completar <misión>`**: Report completion of an assigned mission
+- **`/misión abandonar <misión>`**: Give up on an assigned mission and unassign it
+- **`/misión crear <jugador> <descripción> <recompensa>`**: [ADMIN] Create a mission for a player
 
 ## Database Schema
 
