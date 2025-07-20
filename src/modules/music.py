@@ -40,7 +40,8 @@ class MusicModule:
                 info = ydl.extract_info(link, download=True)
                 filename = ydl.prepare_filename(info)
                 # Replace extension with .mp3
-                audio_file = filename.rsplit(".", 1)[0] + ".mp3"
+                base_name, _ = os.path.splitext(filename)
+                audio_file = base_name + ".mp3"
                 return audio_file
         except Exception as e:
             logger.error(f"Error downloading audio: {e}")
