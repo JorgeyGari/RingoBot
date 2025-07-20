@@ -22,6 +22,16 @@ class MusicModule:
         # Ensure downloads directory exists
         os.makedirs(config.DOWNLOADS_DIR, exist_ok=True)
 
+        # Check for FFmpeg availability
+        self.ffmpeg_path = self._find_ffmpeg()
+        self.ffmpeg_available = self.ffmpeg_path is not None
+
+    def _find_ffmpeg(self) -> str:
+        """Find FFmpeg executable path."""
+        import shutil
+
+        return shutil.which("ffmpeg")
+
     def download_audio(self, link: str) -> str:
         """
         Download audio from YouTube and return the file path.
@@ -74,18 +84,26 @@ class MusicModule:
             # Download the audio
             audio_file = self.download_audio(link)
 
-            # Play the audio
+            # Check if FFmpeg is available
             if not self.ffmpeg_available:
                 await ctx.send(
                     "No se encontró el ejecutable de FFmpeg.", ephemeral=True
                 )
                 await vc.disconnect()
                 return
+
+            # Check if already playing music
             if vc.is_playing():
-                await ctx.send("Ya se está reproduciendo música en este canal.", ephemeral=True)
+                await ctx.send(
+                    "Ya se está reproduciendo música en este canal.", ephemeral=True
+                )
                 await vc.disconnect()
                 return
-            vc.play(discord.FFmpegPCMAudio(executable=ffmpeg_path, source=audio_file))
+
+            # Play the audio using FFmpeg
+            vc.play(
+                discord.FFmpegPCMAudio(executable=self.ffmpeg_path, source=audio_file)
+            )
 
             # Get the title from filename
             title = os.path.basename(audio_file).replace("_", " ").replace(".mp3", "")
@@ -111,7 +129,15 @@ class MusicModule:
 
         except Exception as e:
             logger.error(f"Error playing music: {e}")
-            await ctx.respond(f"Error al reproducir música: {e}", ephemeral=True)
+
+            # Try to send error message (use followup if respond was already called)
+            try:
+                await ctx.followup.send(
+                    f"Error al reproducir música: {e}", ephemeral=True
+                )
+            except discord.NotFound:
+                # If interaction already responded, try regular send
+                await ctx.send(f"Error al reproducir música: {e}", ephemeral=True)
 
             # Ensure we disconnect on error
             if ctx.guild.voice_client:
