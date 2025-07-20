@@ -44,7 +44,6 @@ class CharactersModule:
         """Create a new database connection."""
         try:
             conn = sqlite3.connect(self.db_path, timeout=10.0)
-            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=10000")
             return conn
         except Exception as e:
