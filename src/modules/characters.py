@@ -21,6 +21,7 @@ class CharactersModule:
         character_name TEXT NOT NULL,
         points INTEGER DEFAULT 0,
         guild_id TEXT,
+        picture_url TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );"""
@@ -69,7 +70,7 @@ class CharactersModule:
             conn.close()
 
     def register_character(
-        self, discord_id: str, character_name: str, guild_id: str
+        self, discord_id: str, character_name: str, guild_id: str, picture_url: str = None
     ) -> bool:
         """Register a new character."""
         conn = self._create_connection()
@@ -80,10 +81,10 @@ class CharactersModule:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO characters (discord_id, character_name, guild_id)
-                VALUES (?, ?, ?)
+                INSERT INTO characters (discord_id, character_name, guild_id, picture_url)
+                VALUES (?, ?, ?, ?)
             """,
-                (discord_id, character_name, guild_id),
+                (discord_id, character_name, guild_id, picture_url),
             )
             conn.commit()
             logger.info(f"Character {character_name} registered for user {discord_id}")
@@ -109,7 +110,7 @@ class CharactersModule:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, discord_id, character_name, points, guild_id, created_at, updated_at
+                SELECT id, discord_id, character_name, points, guild_id, picture_url, created_at, updated_at
                 FROM characters WHERE discord_id = ?
             """,
                 (discord_id,),
@@ -118,6 +119,112 @@ class CharactersModule:
         except Exception as e:
             logger.error(f"Error getting character: {e}")
             return None
+        finally:
+            conn.close()
+
+    def update_picture(self, discord_id: str, picture_url: str) -> bool:
+        """Update a character's picture URL."""
+        conn = self._create_connection()
+        if not conn:
+            return False
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE characters 
+                SET picture_url = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE discord_id = ?
+            """,
+                (picture_url, discord_id),
+            )
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                logger.info(f"Picture updated for character {discord_id}")
+                return True
+            else:
+                logger.warning(f"No character found for {discord_id} to update picture")
+                return False
+        except Exception as e:
+            logger.error(f"Error updating character picture: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def update_character_name(self, discord_id: str, new_name: str) -> bool:
+        """Update a character's name."""
+        conn = self._create_connection()
+        if not conn:
+            return False
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE characters 
+                SET character_name = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE discord_id = ?
+            """,
+                (new_name, discord_id),
+            )
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                logger.info(f"Name updated for character {discord_id} to {new_name}")
+                return True
+            else:
+                logger.warning(f"No character found for {discord_id} to update name")
+                return False
+        except Exception as e:
+            logger.error(f"Error updating character name: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def update_character_info(self, discord_id: str, new_name: str = None, new_picture_url: str = None) -> bool:
+        """Update character name and/or picture in a single operation."""
+        conn = self._create_connection()
+        if not conn:
+            return False
+
+        try:
+            cursor = conn.cursor()
+            
+            # Build dynamic query based on what needs to be updated
+            updates = []
+            params = []
+            
+            if new_name is not None:
+                updates.append("character_name = ?")
+                params.append(new_name)
+            
+            if new_picture_url is not None:
+                updates.append("picture_url = ?")
+                params.append(new_picture_url)
+            
+            if not updates:
+                return True  # Nothing to update
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(discord_id)
+            
+            query = f"UPDATE characters SET {', '.join(updates)} WHERE discord_id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                changes = []
+                if new_name: changes.append(f"name to '{new_name}'")
+                if new_picture_url: changes.append("picture")
+                logger.info(f"Updated character {discord_id}: {', '.join(changes)}")
+                return True
+            else:
+                logger.warning(f"No character found for {discord_id} to update")
+                return False
+        except Exception as e:
+            logger.error(f"Error updating character info: {e}")
+            return False
         finally:
             conn.close()
 

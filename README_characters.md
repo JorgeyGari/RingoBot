@@ -18,12 +18,21 @@ The quest system now includes an approval workflow:
    - **✅ Approval**: User receives congratulatory message with reward details
    - **❌ Rejection**: Quest is reset to active status, user can attempt again
 
-### Quest Commands
+### User Commands
 
+- **`/personaje ver-balance`**: Check your current PC balance
+- **`/personaje cambiar-imagen <imagen_url>`**: Update your character's picture with a custom image URL
 - **`/misión solicitar`**: Request a new mission from admins
 - **`/misión completar <misión>`**: Report completion of an assigned mission
 - **`/misión abandonar <misión>`**: Give up on an assigned mission and unassign it
-- **`/misión crear <jugador> <descripción> <recompensa>`**: [ADMIN] Create a mission for a player
+
+### Admin Commands
+
+- **`/admin registrar-personaje <usuario> <nombre_personaje> [imagen_url]`**: Register a character for a user (optionally with custom picture)
+- **`/admin cambiar-nombre <usuario> <nuevo_nombre>`**: Update a character's name
+- **`/admin cambiar-imagen <usuario> <imagen_url>`**: Update a character's picture
+- **`/admin modificar-personaje <usuario> [nuevo_nombre] [imagen_url]`**: Modify multiple character attributes at once
+- **`/misión crear <jugador> <descripción> <recompensa>`**: Create a mission for a player
 
 ## Database Schema
 
@@ -34,6 +43,7 @@ The system uses SQLite with two main tables:
 - `discord_id`: Unique Discord user ID
 - `character_name`: Name of the character
 - `points`: Current PC count (default: 0)
+- `picture_url`: Character picture URL (optional)
 - `guild_id`: Discord guild/server ID
 - `created_at`: Registration timestamp
 - `updated_at`: Last modification timestamp
@@ -48,11 +58,14 @@ The system uses SQLite with two main tables:
 
 ## User Commands
 
-### `/personaje registrar <nombre>`
-Register a new character with the given name. Each Discord user can only have one character.
-
 ### `/personaje ver`
-View your character information including name, current PC, and registration date.
+View your character information including name, current PC, registration date, and character picture.
+
+### `/personaje ver-balance`
+Check your current PC balance quickly.
+
+### `/personaje cambiar-imagen <imagen_url>`
+Update your character's picture by providing an image URL. The URL must start with http:// or https://.
 
 ### `/personaje ranking [límite]`
 View the leaderboard of characters sorted by PC (highest first). Default limit is 10.
@@ -61,6 +74,18 @@ View the leaderboard of characters sorted by PC (highest first). Default limit i
 View your character's point history showing all PC changes with reasons and timestamps.
 
 ## Admin Commands
+
+### `/admin registrar-personaje <usuario> <nombre> [imagen]`
+Register a new character for a specific user. Optionally include a custom image URL. If no image is provided, the user's Discord avatar will be used. Only administrators can use this command.
+
+### `/admin cambiar-nombre <usuario> <nuevo_nombre>`
+Update the name of an existing character without affecting other attributes. Only administrators can use this command.
+
+### `/admin cambiar-imagen <usuario> <imagen_url>`
+Update the picture of an existing character. The URL must be valid and start with http:// or https://. Only administrators can use this command.
+
+### `/admin modificar-personaje <usuario> [nuevo_nombre] [imagen_url]`
+Modify multiple attributes of an existing character at once. You can provide just a name, just an image URL, or both. This is a convenient way to update characters without using multiple commands. Only administrators can use this command.
 
 ### `/admin dar-pc <usuario> <cantidad> [razón]`
 Give PC to a specific user's character. Only administrators can use this command.
@@ -73,12 +98,18 @@ Delete a user's character and all associated history. Only administrators can us
 
 ## Features
 
-- **Unique Characters**: Each Discord user can only register one character
+- **Admin-Only Registration**: Only administrators can register characters for users
+- **Character Modification**: Administrators can modify existing characters without re-registration
+- **Flexible Updates**: Individual attribute updates (name/picture) or combined modifications
+- **Unique Characters**: Each Discord user can only have one character
+- **Custom Character Pictures**: Support for custom character images with fallback to Discord avatars
+- **User Picture Updates**: Users can update their character pictures themselves
 - **Point Tracking**: All point changes are logged with reasons and timestamps
 - **Audit Trail**: Complete history of who made changes and when
 - **Guild Support**: Characters are associated with specific Discord servers
 - **Negative Point Prevention**: Points cannot go below 0
 - **Admin Controls**: Full administrative control over character management
+- **URL Validation**: Automatic validation of image URLs for character pictures
 
 ## File Structure
 
@@ -97,12 +128,14 @@ CHARACTER_DB_PATH = "data/characters.db"
 
 ```
 # User commands
-/personaje registrar Aragorn
 /personaje ver
+/personaje actualizar-imagen https://example.com/character.jpg
 /personaje ranking 5
 /personaje historial
 
 # Admin commands
+/admin registrar-personaje @usuario Aragorn
+/admin registrar-personaje @usuario Legolas https://example.com/elf.jpg
 /admin dar-pc @usuario 10 "Quest completion reward"
 /admin quitar-pc @usuario 2 "Minor rule violation"
 /admin borrar-personaje @usuario

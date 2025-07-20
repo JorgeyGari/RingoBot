@@ -332,18 +332,22 @@ class RingoBot:
             "personaje", "Comandos para gestión de personajes y PC"
         )
 
-        @character.command(
-            name="registrar", description="Registra tu personaje en el sistema."
-        )
-        @discord.option("nombre", description="Nombre de tu personaje.", required=True)
-        async def registrar(ctx: discord.ApplicationContext, nombre: str):
-            """Registra un nuevo personaje."""
-            await self._handle_register_character(ctx, nombre)
-
         @character.command(name="ver", description="Ve la información de tu personaje.")
         async def ver(ctx: discord.ApplicationContext):
             """Ve la información de tu personaje."""
             await self._handle_view_character(ctx)
+
+        @character.command(
+            name="actualizar-imagen", description="Actualiza la imagen de tu personaje."
+        )
+        @discord.option(
+            "imagen",
+            description="URL de la nueva imagen para tu personaje.",
+            required=True,
+        )
+        async def actualizar_imagen(ctx: discord.ApplicationContext, imagen: str):
+            """Actualiza la imagen de tu personaje."""
+            await self._handle_update_character_picture(ctx, imagen)
 
         @character.command(
             name="ranking", description="Ve el ranking de personajes por PC."
@@ -367,6 +371,30 @@ class RingoBot:
 
         # Admin commands for managing PC
         admin = self.bot.create_group("admin", "Comandos administrativos")
+
+        @admin.command(
+            name="registrar-personaje",
+            description="[ADMIN] Registrar un personaje para un usuario.",
+        )
+        @discord.option(
+            "usuario",
+            description="Usuario para el que registrar el personaje.",
+            required=True,
+        )
+        @discord.option("nombre", description="Nombre del personaje.", required=True)
+        @discord.option(
+            "imagen",
+            description="URL de imagen personalizada para el personaje.",
+            required=False,
+        )
+        async def registrar_personaje(
+            ctx: discord.ApplicationContext,
+            usuario: discord.Member,
+            nombre: str,
+            imagen: str = None,
+        ):
+            """[ADMIN] Registrar un personaje para un usuario."""
+            await self._handle_admin_register_character(ctx, usuario, nombre, imagen)
 
         @admin.command(name="dar-pc", description="[ADMIN] Dar PC a un personaje.")
         @discord.option("usuario", description="Usuario al que dar PC.", required=True)
@@ -416,6 +444,68 @@ class RingoBot:
             """[ADMIN] Borrar un personaje."""
             await self._handle_delete_character(ctx, usuario)
 
+        @admin.command(
+            name="cambiar-nombre",
+            description="[ADMIN] Cambiar el nombre de un personaje.",
+        )
+        @discord.option(
+            "usuario", description="Usuario cuyo personaje modificar.", required=True
+        )
+        @discord.option(
+            "nuevo_nombre", description="Nuevo nombre para el personaje.", required=True
+        )
+        async def cambiar_nombre(
+            ctx: discord.ApplicationContext, usuario: discord.Member, nuevo_nombre: str
+        ):
+            """[ADMIN] Cambiar el nombre de un personaje."""
+            await self._handle_change_character_name(ctx, usuario, nuevo_nombre)
+
+        @admin.command(
+            name="cambiar-imagen",
+            description="[ADMIN] Cambiar la imagen de un personaje.",
+        )
+        @discord.option(
+            "usuario", description="Usuario cuyo personaje modificar.", required=True
+        )
+        @discord.option(
+            "nueva_imagen",
+            description="Nueva URL de imagen para el personaje.",
+            required=True,
+        )
+        async def cambiar_imagen(
+            ctx: discord.ApplicationContext, usuario: discord.Member, nueva_imagen: str
+        ):
+            """[ADMIN] Cambiar la imagen de un personaje."""
+            await self._handle_change_character_picture(ctx, usuario, nueva_imagen)
+
+        @admin.command(
+            name="modificar-personaje",
+            description="[ADMIN] Modificar nombre e imagen de un personaje.",
+        )
+        @discord.option(
+            "usuario", description="Usuario cuyo personaje modificar.", required=True
+        )
+        @discord.option(
+            "nuevo_nombre",
+            description="Nuevo nombre para el personaje.",
+            required=False,
+        )
+        @discord.option(
+            "nueva_imagen",
+            description="Nueva URL de imagen para el personaje.",
+            required=False,
+        )
+        async def modificar_personaje(
+            ctx: discord.ApplicationContext,
+            usuario: discord.Member,
+            nuevo_nombre: str = None,
+            nueva_imagen: str = None,
+        ):
+            """[ADMIN] Modificar nombre e imagen de un personaje."""
+            await self._handle_modify_character(
+                ctx, usuario, nuevo_nombre, nueva_imagen
+            )
+
     async def _handle_register_character(
         self, ctx: discord.ApplicationContext, nombre: str
     ):
@@ -437,8 +527,8 @@ class RingoBot:
         # Register new character
         if self.characters_module.register_character(discord_id, nombre, guild_id):
             embed = discord.Embed(
-                title="✅ Personaje Registrado",
-                description=f"**{nombre}** ha sido registrado exitosamente con 0 PC.",
+                title="✅ Carné de residente otorgado",
+                description=f"**{nombre}** acaba de obtener su carné.",
                 color=discord.Color.green(),
             )
             embed.set_footer(text="Usa /personaje ver para ver tu información.")
@@ -451,6 +541,63 @@ class RingoBot:
             )
             await ctx.respond(embed=embed)
 
+    async def _handle_admin_register_character(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Member,
+        nombre: str,
+        imagen: str = None,
+    ):
+        """Handle character registration by admin."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        guild_id = str(ctx.guild.id) if ctx.guild else None
+
+        # Check if character already exists
+        existing_character = self.characters_module.get_character(discord_id)
+        if existing_character:
+            embed = discord.Embed(
+                title="❌ Error",
+                description=f"{user.mention} ya tiene un personaje registrado: **{existing_character[2]}**",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Register new character
+        if self.characters_module.register_character(
+            discord_id, nombre, guild_id, imagen
+        ):
+            embed = discord.Embed(
+                title="✅ Carné de residente otorgado",
+                description=f"**{nombre}** ha sido registrado para {user.mention}.",
+                color=discord.Color.green(),
+            )
+            if imagen:
+                embed.add_field(
+                    name="Imagen personalizada", value="✅ Configurada", inline=True
+                )
+            embed.set_footer(
+                text="El usuario puede usar /personaje ver para ver su información."
+            )
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al registrar el personaje. Inténtalo de nuevo.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
     async def _handle_view_character(self, ctx: discord.ApplicationContext):
         """Handle viewing character information."""
         discord_id = str(ctx.author.id)
@@ -458,28 +605,80 @@ class RingoBot:
 
         if not character:
             embed = discord.Embed(
-                title="❌ Personaje No Encontrado",
-                description="No tienes un personaje registrado. Usa `/personaje registrar` para crear uno.",
+                title="❌ Personaje no encontrado",
+                description="No tienes un personaje registrado. Contacta con un administrador para que te registre.",
                 color=discord.Color.red(),
             )
             await ctx.respond(embed=embed)
             return
 
-        _, _, name, points, _, created_at, updated_at = character
+        _, _, name, points, _, picture_url, created_at, updated_at = character
 
         embed = discord.Embed(
-            title="📋 Información del Personaje", color=discord.Color.blue()
+            title="Carné de residente de Teséia", color=discord.Color.blue()
         )
         embed.add_field(name="Nombre", value=name, inline=True)
-        embed.add_field(name="PC Actuales", value=f"{points} PC", inline=True)
+        embed.add_field(name="PC actuales", value=f"{points} PC", inline=True)
         embed.add_field(
-            name="Registrado",
+            name="Residente desde",
             value=f"<t:{int(datetime.fromisoformat(created_at).timestamp())}:R>",
             inline=False,
         )
-        embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else None)
+
+        # Use character's custom picture if available, otherwise use user's avatar
+        thumbnail_url = (
+            picture_url
+            if picture_url
+            else (ctx.author.avatar.url if ctx.author.avatar else None)
+        )
+        if thumbnail_url:
+            embed.set_thumbnail(url=thumbnail_url)
 
         await ctx.respond(embed=embed)
+
+    async def _handle_update_character_picture(
+        self, ctx: discord.ApplicationContext, imagen: str
+    ):
+        """Handle updating character picture."""
+        discord_id = str(ctx.author.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje no encontrado",
+                description="No tienes un personaje registrado. Contacta con un administrador para que te registre.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        # Validate URL format (basic check)
+        if not imagen.startswith(("http://", "https://")):
+            embed = discord.Embed(
+                title="❌ URL inválida",
+                description="La URL debe comenzar con http:// o https://",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        # Update character picture
+        if self.characters_module.update_picture(discord_id, imagen):
+            embed = discord.Embed(
+                title="✅ Imagen actualizada",
+                description="La imagen de tu personaje ha sido actualizada correctamente.",
+                color=discord.Color.green(),
+            )
+            embed.set_thumbnail(url=imagen)
+            embed.set_footer(text="Usa /personaje ver para ver tu carné actualizado.")
+            await ctx.respond(embed=embed, ephemeral=True)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al actualizar la imagen. Inténtalo de nuevo.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
 
     async def _handle_leaderboard(self, ctx: discord.ApplicationContext, limit: int):
         """Handle leaderboard display."""
@@ -709,6 +908,181 @@ class RingoBot:
             embed = discord.Embed(
                 title="❌ Error",
                 description="Hubo un error al eliminar el personaje.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
+    async def _handle_change_character_name(
+        self, ctx: discord.ApplicationContext, user: discord.Member, nuevo_nombre: str
+    ):
+        """Handle changing a character's name (admin only)."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description=f"{user.mention} no tiene un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        old_name = character[2]
+
+        if self.characters_module.update_character_name(discord_id, nuevo_nombre):
+            embed = discord.Embed(
+                title="✅ Nombre Actualizado",
+                description=f"El personaje de {user.mention} ha sido renombrado.",
+                color=discord.Color.green(),
+            )
+            embed.add_field(name="Nombre anterior", value=old_name, inline=True)
+            embed.add_field(name="Nombre nuevo", value=nuevo_nombre, inline=True)
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al cambiar el nombre del personaje.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
+    async def _handle_change_character_picture(
+        self, ctx: discord.ApplicationContext, user: discord.Member, nueva_imagen: str
+    ):
+        """Handle changing a character's picture (admin only)."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description=f"{user.mention} no tiene un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Validate URL format (basic check)
+        if not nueva_imagen.startswith(("http://", "https://")):
+            embed = discord.Embed(
+                title="❌ URL inválida",
+                description="La URL debe comenzar con http:// o https://",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        if self.characters_module.update_picture(discord_id, nueva_imagen):
+            embed = discord.Embed(
+                title="✅ Imagen Actualizada",
+                description=f"La imagen del personaje **{character[2]}** de {user.mention} ha sido actualizada.",
+                color=discord.Color.green(),
+            )
+            embed.set_thumbnail(url=nueva_imagen)
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al cambiar la imagen del personaje.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+
+    async def _handle_modify_character(
+        self,
+        ctx: discord.ApplicationContext,
+        user: discord.Member,
+        nuevo_nombre: str = None,
+        nueva_imagen: str = None,
+    ):
+        """Handle modifying a character's name and/or picture (admin only)."""
+        # Check if user has admin permissions
+        if not ctx.author.guild_permissions.administrator:
+            embed = discord.Embed(
+                title="❌ Sin Permisos",
+                description="Solo los administradores pueden usar este comando.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        discord_id = str(user.id)
+        character = self.characters_module.get_character(discord_id)
+
+        if not character:
+            embed = discord.Embed(
+                title="❌ Personaje No Encontrado",
+                description=f"{user.mention} no tiene un personaje registrado.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed)
+            return
+
+        # Validate that at least one parameter is provided
+        if not nuevo_nombre and not nueva_imagen:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Debes proporcionar al menos un nuevo nombre o una nueva imagen.",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        # Validate URL format if provided
+        if nueva_imagen and not nueva_imagen.startswith(("http://", "https://")):
+            embed = discord.Embed(
+                title="❌ URL inválida",
+                description="La URL debe comenzar con http:// o https://",
+                color=discord.Color.red(),
+            )
+            await ctx.respond(embed=embed, ephemeral=True)
+            return
+
+        old_name = character[2]
+
+        if self.characters_module.update_character_info(
+            discord_id, nuevo_nombre, nueva_imagen
+        ):
+            embed = discord.Embed(
+                title="✅ Personaje Modificado",
+                description=f"El personaje de {user.mention} ha sido actualizado.",
+                color=discord.Color.green(),
+            )
+
+            if nuevo_nombre:
+                embed.add_field(name="Nombre anterior", value=old_name, inline=True)
+                embed.add_field(name="Nombre nuevo", value=nuevo_nombre, inline=True)
+
+            if nueva_imagen:
+                embed.add_field(name="Imagen", value="✅ Actualizada", inline=True)
+                embed.set_thumbnail(url=nueva_imagen)
+
+            await ctx.respond(embed=embed)
+        else:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Hubo un error al modificar el personaje.",
                 color=discord.Color.red(),
             )
             await ctx.respond(embed=embed)
