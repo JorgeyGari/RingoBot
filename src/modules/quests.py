@@ -355,6 +355,37 @@ class QuestsModule:
 
             # Approve the quest
             if self.approve_quest(quest_id):
+                # Award points if reward contains PC
+                points_awarded = 0
+                try:
+                    from modules.characters import CharactersModule
+
+                    characters_module = CharactersModule()
+
+                    # Extract points from reward text (look for numbers followed by "PC" or "pc")
+                    import re
+
+                    pc_match = re.search(r"(\d+)\s*[Pp][Cc]", reward)
+                    if pc_match:
+                        points_awarded = int(pc_match.group(1))
+                        admin_name = await self._get_user_name(bot, user_id)
+                        success = characters_module.update_points(
+                            completed_by,
+                            points_awarded,
+                            f"Quest completed: {description[:50]}{'...' if len(description) > 50 else ''}",
+                            user_id,
+                        )
+                        if success:
+                            logger.info(
+                                f"Awarded {points_awarded} PC to {completed_by} for quest {quest_id}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Failed to award points to {completed_by} for quest {quest_id}"
+                            )
+                except Exception as e:
+                    logger.error(f"Error awarding points: {e}")
+
                 # Send notification to the user
                 try:
                     user = await bot.fetch_user(int(completed_by))
@@ -578,6 +609,9 @@ class QuestsModule:
                         color=discord.Color.orange(),
                     )
                     embed.set_footer(text=f"Quest ID: {quest_id}")
+                    embed.set_footer(
+                        text="Reacciona con ✅ si los requisitios de la misión se han cumplido. Reacciona con ❌ si no se han cumplido."
+                    )
                     message = await channel.send(embed=embed)
                     await message.add_reaction("✅")  # Checkmark reaction
                     await message.add_reaction("❌")  # Cross reaction
@@ -668,3 +702,11 @@ class QuestsModule:
         except Exception as e:
             logger.error(f"Error getting quest options: {e}")
             return []
+
+    async def _get_user_name(self, bot, user_id: str) -> str:
+        """Helper method to get user name for logging."""
+        try:
+            user = await bot.fetch_user(int(user_id))
+            return user.name if user else user_id
+        except Exception:
+            return user_id

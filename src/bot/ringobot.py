@@ -290,7 +290,9 @@ class RingoBot:
             "descripción", description="Descripción de la misión.", required=True
         )
         @discord.option(
-            "recompensa", description="Recompensa de la misión.", required=True
+            "recompensa",
+            description="Recompensa de la misión. Recuerda escribir «PC» para otorgar pucos (ej.: 10 PC)",
+            required=True,
         )
         async def crear(
             ctx: discord.ApplicationContext,
