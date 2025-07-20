@@ -4,6 +4,7 @@ Discape module for escape room simulation functionality.
 
 import os
 import logging
+import threading
 from openpyxl import load_workbook
 import discord
 from typing import List, Tuple, Dict, Optional
@@ -56,6 +57,7 @@ class DiscapeModule:
     def __init__(self):
         """Initialize the Discape module."""
         self.wb = None
+        self.save_lock = threading.Lock()
         self._load_workbook()
 
     def _load_workbook(self):
@@ -195,7 +197,8 @@ class DiscapeModule:
                     )
                     break
 
-            self.wb.save(config.DISCAPE_FILE)
+            with self.save_lock:
+                self.wb.save(config.DISCAPE_FILE)
             logger.info(f"Player {player} joined room {room}")
             return f"Te has unido a la sala: {room}."
         except Exception as e:
@@ -281,7 +284,21 @@ class DiscapeModule:
             new_row = ws.max_row + 1
             for i, value in enumerate(new_data):
                 ws.cell(row=new_row, column=i + 1, value=value)
-            self.wb.save(config.DISCAPE_FILE)
+            with self.save_lock:
+                self.wb.save(config.DISCAPE_FILE)
+        except Exception as e:
+            logger.error(f"Error adding item: {e}")
+
+    def _add_item_no_save(self, new_data: List[str]) -> None:
+        """Add a new item to the inventory without saving."""
+        if not self.wb:
+            return
+
+        try:
+            ws = self.wb["Inventario"]
+            new_row = ws.max_row + 1
+            for i, value in enumerate(new_data):
+                ws.cell(row=new_row, column=i + 1, value=value)
         except Exception as e:
             logger.error(f"Error adding item: {e}")
 
@@ -296,7 +313,8 @@ class DiscapeModule:
                 if row[0].value == item and row[2].value == room:
                     ws.delete_rows(row[0].row)
                     break
-            self.wb.save(config.DISCAPE_FILE)
+            with self.save_lock:
+                self.wb.save(config.DISCAPE_FILE)
         except Exception as e:
             logger.error(f"Error removing item: {e}")
 
@@ -315,7 +333,8 @@ class DiscapeModule:
                 player_row = player_column_values.index(player)
 
                 ws.cell(row=player_row + 1, column=self.CHAR_HAND_COL + 1, value=item)
-                self.wb.save(config.DISCAPE_FILE)
+                with self.save_lock:
+                    self.wb.save(config.DISCAPE_FILE)
                 return f"Equipaste: {item}."
             else:
                 return "No tienes eso."
@@ -468,7 +487,8 @@ class DiscapeModule:
                 if row[4].value == item and path == before:  # key_col
                     row[4].value = None
                     self.update_player_location(player, room, row[2].value)
-                    self.wb.save(config.DISCAPE_FILE)
+                    with self.save_lock:
+                        self.wb.save(config.DISCAPE_FILE)
                     return row[5].value or ""  # action_col
             return ""
         except Exception as e:
@@ -484,9 +504,10 @@ class DiscapeModule:
             ws = self.wb[room]
             for row in ws:
                 if row[0].value == item:  # name_col
-                    self.add_item([item, row[1].value, room])
+                    self._add_item_no_save([item, row[1].value, room])
                     ws.delete_rows(row[0].row)
-                    self.wb.save(config.DISCAPE_FILE)
+                    with self.save_lock:
+                        self.wb.save(config.DISCAPE_FILE)
                     return f"Has obtenido un nuevo objeto: {item}."
             return "No se pudo obtener el objeto."
         except Exception as e:
@@ -506,7 +527,8 @@ class DiscapeModule:
                         row=row[self.CHAR_NAME_COL].row, column=self.CHAR_ROOM_COL + 1
                     ).value = None
 
-            self.wb.save(config.DISCAPE_FILE)
+            with self.save_lock:
+                self.wb.save(config.DISCAPE_FILE)
             return "**Has escapado.**"
         except Exception as e:
             logger.error(f"Error handling escape: {e}")
@@ -567,6 +589,7 @@ class DiscapeModule:
             bonus = self.get_stat(player, característica)
 
             import random
+
             roll = random.randint(1, 20)
             result = roll + bonus
 

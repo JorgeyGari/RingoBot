@@ -27,7 +27,7 @@ temp/
 
 # Data files (comment out if you want to track them)
 data/file.xlsx
-data/*.db
+data/*.db*
 downloads/
 
 # OS files
