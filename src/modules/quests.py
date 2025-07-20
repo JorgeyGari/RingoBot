@@ -30,6 +30,7 @@ class QuestsModule:
         """Create database connection."""
         try:
             conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
             logger.info(f"Connected to quest database: {self.db_path}")
             return conn
         except sqlite3.Error as e:
