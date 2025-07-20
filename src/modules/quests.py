@@ -4,6 +4,7 @@ Quests module for quest management functionality.
 
 import sqlite3
 import logging
+import queue
 from typing import List, Tuple, Optional
 
 from utils.config import config
@@ -27,10 +28,9 @@ class QuestsModule:
         self.connection_pool = self._initialize_connection_pool()
         self._create_table()
 
-    def _initialize_connection_pool(self) -> "queue.Queue":
+    def _initialize_connection_pool(self) -> queue.Queue:
         """Initialize a connection pool."""
-        from queue import Queue
-        pool = Queue(maxsize=10)  # Adjust pool size as needed
+        pool = queue.Queue(maxsize=10)
         for _ in range(pool.maxsize):
             conn = sqlite3.connect(self.db_path, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
@@ -41,7 +41,7 @@ class QuestsModule:
     def _create_connection(self) -> Optional[sqlite3.Connection]:
         """Fetch a connection from the pool."""
         try:
-            return self.connection_pool.get(timeout=5)  # Adjust timeout as needed
+            return self.connection_pool.get(timeout=5)
         except Exception as e:
             logger.error(f"Error fetching connection from pool: {e}")
             return None
@@ -49,9 +49,10 @@ class QuestsModule:
     def _release_connection(self, conn: sqlite3.Connection) -> None:
         """Return a connection to the pool."""
         try:
-            self.connection_pool.put(conn, timeout=5)  # Adjust timeout as needed
+            self.connection_pool.put(conn, timeout=5)
         except Exception as e:
             logger.error(f"Error returning connection to pool: {e}")
+
     def _create_table(self) -> None:
         """Create the quests table if it doesn't exist."""
         conn = self._create_connection()
@@ -66,7 +67,7 @@ class QuestsModule:
         except sqlite3.Error as e:
             logger.error(f"Error creating table: {e}")
         finally:
-            conn.close()
+            self._release_connection(conn)
 
     def create_request(self, player: str) -> int:
         """
@@ -107,7 +108,7 @@ class QuestsModule:
             logger.error(f"Error creating quest request: {e}")
             return -1
         finally:
-            conn.close()
+            self._release_connection(conn)
 
     def get_users_with_pending_requests(self) -> List[str]:
         """Get list of users with pending quest requests."""
@@ -125,7 +126,7 @@ class QuestsModule:
             logger.error(f"Error getting pending requests: {e}")
             return []
         finally:
-            conn.close()
+            self._release_connection(conn)
 
     def get_user_request_id(self, player: str) -> Optional[int]:
         """Get the quest request ID for a player."""
@@ -143,7 +144,7 @@ class QuestsModule:
             logger.error(f"Error getting user request ID: {e}")
             return None
         finally:
-            conn.close()
+            self._release_connection(conn)
 
     def get_user_active_quests(self, player: str) -> List[Tuple]:
         """Get active quests for a player."""
@@ -161,7 +162,7 @@ class QuestsModule:
             logger.error(f"Error getting active quests: {e}")
             return []
         finally:
-            conn.close()
+            self._release_connection(conn)
 
     def update_request(self, player: str, description: str, reward: str) -> bool:
         """
@@ -196,7 +197,7 @@ class QuestsModule:
             logger.error(f"Error updating quest request: {e}")
             return False
         finally:
-            conn.close()
+            self._release_connection(conn)
 
     async def handle_request_command(self, ctx):
         """Handle the quest request command."""
