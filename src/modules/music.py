@@ -75,11 +75,7 @@ class MusicModule:
             audio_file = self.download_audio(link)
 
             # Play the audio
-            import shutil
-
-            ffmpeg_path = getattr(config, "FFMPEG_PATH", "ffmpeg")
-            if shutil.which(ffmpeg_path) is None:
-                logger.error(f"FFmpeg executable not found in PATH: {ffmpeg_path}")
+            if not self.ffmpeg_available:
                 await ctx.send(
                     "No se encontró el ejecutable de FFmpeg.", ephemeral=True
                 )
