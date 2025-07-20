@@ -81,6 +81,10 @@ class MusicModule:
                 )
                 await vc.disconnect()
                 return
+            if vc.is_playing():
+                await ctx.send("Ya se está reproduciendo música en este canal.", ephemeral=True)
+                await vc.disconnect()
+                return
             vc.play(discord.FFmpegPCMAudio(executable=ffmpeg_path, source=audio_file))
 
             # Get the title from filename
