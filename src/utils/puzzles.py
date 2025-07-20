@@ -28,11 +28,11 @@ class PuzzlesSolver:
                 "hola": PuzzlesSolver.hola,
                 # Add more puzzle functions here as needed
             }
-            puzzle_func = puzzle_registry.get(puzzle_name)
             if not puzzle_name.replace("_", "").replace("-", "").isalnum():
                 logger.warning(f"Invalid puzzle name format: '{puzzle_name}'")
                 return "Nombre de puzzle inválido."
 
+            puzzle_func = puzzle_registry.get(puzzle_name)
             if puzzle_func:
                 return puzzle_func()
             else:
