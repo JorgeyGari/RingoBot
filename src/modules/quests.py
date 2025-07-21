@@ -373,6 +373,11 @@ class QuestsModule:
     async def handle_request_command(self, ctx):
         """Handle the quest request command."""
         try:
+            # Check if we can still respond to this interaction
+            if ctx.response.is_done():
+                logger.warning("Interaction already acknowledged, cannot respond")
+                return
+
             await ctx.defer()
 
             player = ctx.user.name
@@ -382,43 +387,62 @@ class QuestsModule:
                 await ctx.followup.send(
                     "Ya tienes una solicitud de misión en curso.", ephemeral=True
                 )
+                return
+
+            # Send a message to the quest-requests channel
+            import discord
+
+            notification_sent = False
+            try:
+                channel_id = config.QUEST_REQUESTS_CHANNEL_ID
+                channel = ctx.bot.get_channel(channel_id)
+
+                if channel:
+                    embed = discord.Embed(
+                        title="Nueva solicitud de misión",
+                        description=f"**Solicitante:** {player}",
+                    )
+                    await channel.send(embed=embed)
+                    notification_sent = True
+
+                logger.info(f"Quest request created for {player} with ID {request_id}")
+            except Exception as e:
+                logger.error(f"Error sending quest request notification: {e}")
+
+            # Send only one followup response
+            if notification_sent:
+                await ctx.followup.send("Solicitud de misión enviada.", ephemeral=True)
             else:
-                # Send a message to the quest-requests channel
-                import discord
-
-                try:
-                    channel_id = config.QUEST_REQUESTS_CHANNEL_ID
-                    channel = ctx.bot.get_channel(channel_id)
-
-                    if channel:
-                        embed = discord.Embed(
-                            title="Nueva solicitud de misión",
-                            description=f"**Solicitante:** {player}",
-                        )
-                        await channel.send(embed=embed)
-
-                    await ctx.followup.send(
-                        "Solicitud de misión enviada.", ephemeral=True
-                    )
-                    logger.info(
-                        f"Quest request created for {player} with ID {request_id}"
-                    )
-                except Exception as e:
-                    logger.error(f"Error sending quest request notification: {e}")
-                    await ctx.followup.send(
-                        "Solicitud creada, pero no se pudo enviar la notificación.",
-                        ephemeral=True,
-                    )
+                await ctx.followup.send(
+                    "Solicitud creada, pero no se pudo enviar la notificación.",
+                    ephemeral=True,
+                )
 
         except Exception as e:
             logger.error(f"Error in handle_request_command: {e}")
-            await ctx.followup.send("Error al procesar la solicitud.", ephemeral=True)
+            # Only try to send error message if interaction hasn't been acknowledged
+            try:
+                if not ctx.response.is_done():
+                    await ctx.response.send_message(
+                        "Error al procesar la solicitud.", ephemeral=True
+                    )
+                else:
+                    await ctx.followup.send(
+                        "Error al procesar la solicitud.", ephemeral=True
+                    )
+            except Exception as send_error:
+                logger.error(f"Could not send error message: {send_error}")
 
     async def handle_create_command(
         self, ctx, jugador: str, descripción: str, recompensa: str
     ):
         """Handle the quest creation command."""
         try:
+            # Check if we can still respond to this interaction
+            if ctx.response.is_done():
+                logger.warning("Interaction already acknowledged, cannot respond")
+                return
+
             await ctx.defer()
 
             request_id = self.get_user_request_id(jugador)
@@ -430,30 +454,65 @@ class QuestsModule:
 
             success = self.update_request(jugador, descripción, recompensa)
             if success:
-                # Send a message to the user's quest channel
+                # Send a direct message to the user
                 import discord
 
+                notification_sent = False
                 try:
-                    # Check if user has a configured quest channel
-                    quest_channels = getattr(config, "QUEST_CHANNEL_ID_DICT", {})
-                    if jugador in quest_channels:
-                        channel = ctx.bot.get_channel(quest_channels[jugador])
-                        if channel:
-                            embed = discord.Embed(
-                                title=descripción,
-                                fields=[
-                                    discord.EmbedField(
-                                        name="Recompensa", value=recompensa
-                                    ),
-                                ],
-                            )
-                            embed.set_author(name=f"Misión n.º {request_id}")
-                            await channel.send(embed=embed)
+                    # Find the user by name and send them a DM
+                    user = None
 
-                    await ctx.followup.send("Misión creada.")
+                    # Method 1: Search through all guild members
+                    for guild in ctx.bot.guilds:
+                        for member in guild.members:
+                            if member.name == jugador:
+                                user = member
+                                break
+                        if user:
+                            break
+
+                    # Method 2: If not found, try searching by display name
+                    if not user:
+                        for guild in ctx.bot.guilds:
+                            for member in guild.members:
+                                if member.display_name == jugador:
+                                    user = member
+                                    break
+                            if user:
+                                break
+
+                    if user:
+                        embed = discord.Embed(
+                            title="🎯 Nueva misión asignada",
+                            description=descripción,
+                            color=discord.Color.blue(),
+                        )
+                        embed.add_field(
+                            name="Recompensa", value=recompensa, inline=False
+                        )
+                        embed.set_author(name=f"Misión n.º {request_id}")
+                        embed.set_footer(
+                            text="¡Completa esta misión para obtener tu recompensa!"
+                        )
+
+                        await user.send(embed=embed)
+                        notification_sent = True
+                        logger.info(
+                            f"Quest notification sent via DM to {jugador} (user ID: {user.id})"
+                        )
+                    else:
+                        logger.warning(f"Could not find user {jugador} to send DM")
+
                     logger.info(f"Quest created for {jugador}: {descripción}")
                 except Exception as e:
-                    logger.error(f"Error sending quest to player channel: {e}")
+                    logger.error(f"Error sending quest DM to player: {e}")
+
+                # Send appropriate response
+                if notification_sent:
+                    await ctx.followup.send(
+                        "Misión creada y enviada por mensaje directo."
+                    )
+                else:
                     await ctx.followup.send(
                         "Misión creada, pero no se pudo enviar al jugador.",
                         ephemeral=True,
@@ -463,7 +522,16 @@ class QuestsModule:
 
         except Exception as e:
             logger.error(f"Error in handle_create_command: {e}")
-            await ctx.followup.send("Error al crear la misión.", ephemeral=True)
+            # Only try to send error message if interaction hasn't been acknowledged
+            try:
+                if not ctx.response.is_done():
+                    await ctx.response.send_message(
+                        "Error al crear la misión.", ephemeral=True
+                    )
+                else:
+                    await ctx.followup.send("Error al crear la misión.", ephemeral=True)
+            except Exception as send_error:
+                logger.error(f"Could not send error message: {send_error}")
 
     async def handle_complete_command(self, ctx, misión: str):
         """Handle the quest completion command."""
@@ -516,7 +584,7 @@ class QuestsModule:
                     )
                     embed.set_footer(text=f"Quest ID: {quest_id}")
                     embed.set_footer(
-                        text="Reacciona con ✅ si los requisitios de la misión se han cumplido. Reacciona con ❌ si no se han cumplido."
+                        text="Reacciona con ✅ si los requisitios de la misión se han cumplido.\nReacciona con ❌ si no se han cumplido."
                     )
                     message = await channel.send(embed=embed)
                     await message.add_reaction("✅")  # Checkmark reaction
@@ -604,7 +672,33 @@ class QuestsModule:
         """Get quest options for autocomplete."""
         try:
             records = self.get_user_active_quests(player)
-            return [f"{record[0]}: {record[2]}" for record in records if record[2]]
+            options = []
+
+            for record in records:
+                # Skip if description is None or empty
+                if not record[2] or not record[2].strip():
+                    continue
+
+                # Create the option string: "ID: Description"
+                option = f"{record[0]}: {record[2]}"
+
+                # Ensure the option is between 1 and 100 characters (Discord requirement)
+                if len(option) > 100:
+                    # Truncate description to fit within 100 chars, accounting for "ID: " and "..."
+                    max_desc_length = 100 - len(f"{record[0]}: ...")
+                    truncated_desc = record[2][:max_desc_length].strip()
+                    option = f"{record[0]}: {truncated_desc}..."
+
+                # Final check to ensure it's valid
+                if 1 <= len(option) <= 100:
+                    options.append(option)
+                else:
+                    logger.warning(
+                        f"Skipping invalid autocomplete option: '{option}' (length: {len(option)})"
+                    )
+
+            return options
+
         except Exception as e:
             logger.error(f"Error getting quest options: {e}")
             return []
