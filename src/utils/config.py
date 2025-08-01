@@ -16,6 +16,9 @@ class Config:
     # Discord Bot Configuration
     TOKEN = os.getenv("TOKEN")
     DEBUG_GUILDS = [429400823395647489, 948015933434253372]
+    
+    # Admin Configuration
+    ADMIN_ROLES = ["Admin", "Moderator", "Owner", "Administrador", "Mod"]
 
     # Hall of Fame Configuration
     HALL_OF_FAME_CHANNEL_ID = 1273250919110152258

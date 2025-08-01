@@ -4,6 +4,7 @@ Main RingoBot class that manages the Discord bot and its modules.
 
 import discord
 import logging
+import asyncio
 from datetime import datetime
 
 from utils.config import config
@@ -14,8 +15,329 @@ from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
 from modules.wisdom import WisdomModule, _normalize, _WISDOM_TRIGGER
 from modules.characters import CharactersModule
+from modules.combat import CombatModule
 
 logger = logging.getLogger(__name__)
+
+
+class CombatView(discord.ui.View):
+    """Discord UI view for combat actions."""
+    
+    def __init__(self, combat_module, channel_id: int):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.combat_module = combat_module
+        self.channel_id = channel_id
+
+    @discord.ui.button(label="⚔️ Atacar", style=discord.ButtonStyle.danger, emoji="⚔️")
+    async def attack_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        """Handle attack button press."""
+        combat = self.combat_module.get_combat_session(self.channel_id)
+        if not combat or combat.turn_phase != "player":
+            await interaction.response.send_message("❌ No es el turno de los jugadores.", ephemeral=True)
+            return
+
+        participant = None
+        for p in combat.participants:
+            if p.discord_id == str(interaction.user.id):
+                participant = p
+                break
+
+        if not participant:
+            await interaction.response.send_message("❌ No estás participando en este combate.", ephemeral=True)
+            return
+
+        if not participant.is_alive:
+            await interaction.response.send_message("❌ Estás fuera de combate.", ephemeral=True)
+            return
+
+        if participant.selected_action:
+            await interaction.response.send_message("❌ Ya has seleccionado una acción este turno.", ephemeral=True)
+            return
+
+        # Set attack action
+        action = {"type": "attack"}
+        self.combat_module.set_player_action(self.channel_id, str(interaction.user.id), action)
+        
+        await interaction.response.send_message("⚔️ Has elegido **Atacar**!", ephemeral=True)
+        
+        # Check if all players are ready to process turn
+        if self.combat_module.all_players_ready(self.channel_id):
+            await self._process_turn(interaction)
+
+    @discord.ui.button(label="✨ Técnica", style=discord.ButtonStyle.primary, emoji="✨")
+    async def technique_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        """Handle technique button press."""
+        combat = self.combat_module.get_combat_session(self.channel_id)
+        if not combat or combat.turn_phase != "player":
+            await interaction.response.send_message("❌ No es el turno de los jugadores.", ephemeral=True)
+            return
+
+        participant = None
+        for p in combat.participants:
+            if p.discord_id == str(interaction.user.id):
+                participant = p
+                break
+
+        if not participant:
+            await interaction.response.send_message("❌ No estás participando en este combate.", ephemeral=True)
+            return
+
+        if not participant.is_alive:
+            await interaction.response.send_message("❌ Estás fuera de combate.", ephemeral=True)
+            return
+
+        if participant.selected_action:
+            await interaction.response.send_message("❌ Ya has seleccionado una acción este turno.", ephemeral=True)
+            return
+
+        # Get available techniques
+        techniques = self.combat_module.get_available_techniques(str(interaction.user.id))
+        if not techniques:
+            await interaction.response.send_message("❌ No tienes técnicas disponibles.", ephemeral=True)
+            return
+
+        # Create technique selection view
+        technique_view = TechniqueSelectionView(self.combat_module, self.channel_id, techniques)
+        
+        embed = discord.Embed(title="✨ Selecciona una Técnica", color=discord.Color.blue())
+        for i, technique in enumerate(techniques[:10]):  # Limit to 10 techniques
+            cooldown_text = ""
+            if technique.id in participant.technique_cooldowns and participant.technique_cooldowns[technique.id] > 0:
+                cooldown_text = f" (⏳ {participant.technique_cooldowns[technique.id]} turnos)"
+            
+            embed.add_field(
+                name=f"{i+1}. {technique.name}{cooldown_text}",
+                value=f"{technique.description}\n*Basada en: {technique.associated_stat.capitalize()}* | **Costo:** {technique.cost} turno{'s' if technique.cost != 1 else ''}",
+                inline=False
+            )
+
+        await interaction.response.send_message(embed=embed, view=technique_view, ephemeral=True)
+
+    async def _process_turn(self, interaction: discord.Interaction):
+        """Process the turn when all players are ready."""
+        try:
+            # Get the channel and send turn results
+            channel = interaction.guild.get_channel(self.channel_id)
+            if not channel:
+                await interaction.followup.send("❌ Error: No se pudo encontrar el canal.", ephemeral=True)
+                return
+
+            # Process player turn
+            results = self.combat_module.process_player_turn(self.channel_id)
+            
+            if results:
+                result_embed = discord.Embed(
+                    title="⚔️ Resultados del Turno de Jugadores",
+                    description="\n".join(results),
+                    color=discord.Color.green()
+                )
+                await channel.send(embed=result_embed)
+
+            # Check if combat ended
+            combat = self.combat_module.get_combat_session(self.channel_id)
+            if not combat or combat.enemy.current_hp <= 0:
+                self.combat_module.end_combat(self.channel_id)
+                victory_embed = discord.Embed(
+                    title="🎉 ¡Victoria!",
+                    description=f"¡{combat.enemy.name} ha sido derrotado!",
+                    color=discord.Color.gold()
+                )
+                await channel.send(embed=victory_embed)
+                return
+
+            # Process enemy turn with proper error handling
+            try:
+                await asyncio.sleep(2)  # Brief pause for dramatic effect
+                enemy_results = self.combat_module.process_enemy_turn(self.channel_id)
+                
+                if enemy_results:
+                    enemy_embed = discord.Embed(
+                        title="👹 Turno del Enemigo",
+                        description="\n".join(enemy_results),
+                        color=discord.Color.red()
+                    )
+                    await channel.send(embed=enemy_embed)
+            except Exception as e:
+                await channel.send(f"❌ Error durante el turno del enemigo: {str(e)}")
+                return
+
+            # Check if all players defeated
+            combat = self.combat_module.get_combat_session(self.channel_id)
+            if combat and not any(p.is_alive for p in combat.participants):
+                self.combat_module.end_combat(self.channel_id)
+                defeat_embed = discord.Embed(
+                    title="💀 Derrota",
+                    description="Todos los participantes han caído en combate.",
+                    color=discord.Color.dark_red()
+                )
+                await channel.send(embed=defeat_embed)
+                return
+
+            # Update combat embed for next turn
+            await self._update_combat_embed(channel, combat)
+
+        except Exception as e:
+            channel = interaction.guild.get_channel(self.channel_id)
+            if channel:
+                await channel.send(f"❌ Error crítico durante el procesamiento del turno: {str(e)}")
+
+    async def _update_combat_embed(self, channel, combat):
+        """Update the combat embed with current status."""
+        try:
+            # First, mark the old message as finished if it exists
+            if combat.message_id:
+                try:
+                    old_message = await channel.fetch_message(combat.message_id)
+                    
+                    # Get the current embed and modify the phase field
+                    old_embed = old_message.embeds[0] if old_message.embeds else None
+                    if old_embed:
+                        # Create a new embed based on the old one
+                        finished_embed = discord.Embed(
+                            title=old_embed.title,
+                            description=old_embed.description,
+                            color=discord.Color.greyple()  # Greyish color for finished turns
+                        )
+                        
+                        # Copy all fields except the last one (Phase)
+                        for field in old_embed.fields[:-1]:  # All except the last field
+                            finished_embed.add_field(
+                                name=field.name,
+                                value=field.value,
+                                inline=field.inline
+                            )
+                        
+                        # Add the finished phase field
+                        finished_embed.add_field(name="📋 Fase", value="⏹️ **Turno finalizado**", inline=False)
+                        
+                        # Remove the view (disable buttons) and update
+                        await old_message.edit(embed=finished_embed, view=None)
+                except discord.NotFound:
+                    pass  # Message was already deleted
+                except Exception as e:
+                    # Log the error but continue with creating new message
+                    print(f"Error updating old message: {e}")
+
+            # Create the new combat embed
+            embed = discord.Embed(
+                title=f"⚔️ Combate: {combat.enemy.name}",
+                description=combat.enemy.description,
+                color=discord.Color.red()
+            )
+
+            # Enemy status
+            hp_bar = self._create_hp_bar(combat.enemy.current_hp, combat.enemy.max_hp)
+            embed.add_field(
+                name="👹 Estado del Enemigo",
+                value=f"{hp_bar}\n❤️ {combat.enemy.current_hp}/{combat.enemy.max_hp} HP",
+                inline=False
+            )
+
+            # Player status
+            players_status = []
+            for participant in combat.participants:
+                status_icon = "💀" if not participant.is_alive else "⚔️"
+                hp_bar = self._create_hp_bar(participant.stats.current_hp, participant.stats.max_hp) if participant.is_alive else "💀💀💀💀💀"
+                status_effects = ""
+                if participant.status_effects:
+                    effects = [effect.value for effect in participant.status_effects.keys()]
+                    status_effects = f" ({', '.join(effects)})"
+                
+                players_status.append(f"{status_icon} **{participant.character_name}**{status_effects}\n{hp_bar} {participant.stats.current_hp}/{participant.stats.max_hp} HP")
+
+            embed.add_field(
+                name="🛡️ Participantes",
+                value="\n\n".join(players_status),
+                inline=False
+            )
+
+            # Turn phase
+            embed.add_field(name="📋 Fase", value="🎯 **Turno de los jugadores** - Selecciona tu acción", inline=False)
+
+            # Create new view and send new message
+            new_view = CombatView(self.combat_module, self.channel_id)
+            message = await channel.send(embed=embed, view=new_view)
+            combat.message_id = message.id
+            
+        except Exception as e:
+            await channel.send(f"❌ Error actualizando el embed de combate: {str(e)}")
+
+    def _create_hp_bar(self, current_hp: int, max_hp: int, length: int = 10) -> str:
+        """Create a visual HP bar."""
+        if max_hp <= 0:
+            return "💀" * length
+        
+        percentage = current_hp / max_hp
+        filled_length = int(length * percentage)
+        empty_length = length - filled_length
+        
+        return "🟩" * filled_length + "🟥" * empty_length
+
+
+class TechniqueSelectionView(discord.ui.View):
+    """View for selecting techniques."""
+    
+    def __init__(self, combat_module, channel_id: int, techniques: list):
+        super().__init__(timeout=60)  # 1 minute timeout
+        self.combat_module = combat_module
+        self.channel_id = channel_id
+        self.techniques = techniques
+        
+        # Add buttons for each technique (up to 5)
+        for i, technique in enumerate(techniques[:5]):
+            button = discord.ui.Button(
+                label=f"{i+1}. {technique.name}",
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"technique_{technique.id}"
+            )
+            button.callback = self._make_technique_callback(technique.id)
+            self.add_item(button)
+
+    def _make_technique_callback(self, technique_id: int):
+        """Create callback for technique button."""
+        async def technique_callback(interaction: discord.Interaction):
+            combat = self.combat_module.get_combat_session(self.channel_id)
+            if not combat or combat.turn_phase != "player":
+                await interaction.response.send_message("❌ No es el turno de los jugadores.", ephemeral=True)
+                return
+
+            participant = None
+            for p in combat.participants:
+                if p.discord_id == str(interaction.user.id):
+                    participant = p
+                    break
+
+            if not participant or not participant.is_alive:
+                await interaction.response.send_message("❌ No puedes actuar ahora.", ephemeral=True)
+                return
+
+            if participant.selected_action:
+                await interaction.response.send_message("❌ Ya has seleccionado una acción este turno.", ephemeral=True)
+                return
+
+            # Check cooldown
+            if technique_id in participant.technique_cooldowns and participant.technique_cooldowns[technique_id] > 0:
+                await interaction.response.send_message(f"❌ Debes esperar {participant.technique_cooldowns[technique_id]} turnos más.", ephemeral=True)
+                return
+
+            technique = self.combat_module.get_technique(technique_id)
+            if not technique:
+                await interaction.response.send_message("❌ Técnica no encontrada.", ephemeral=True)
+                return
+
+            # Set technique action
+            action = {"type": "technique", "technique_id": technique_id}
+            self.combat_module.set_player_action(self.channel_id, str(interaction.user.id), action)
+            
+            await interaction.response.send_message(f"✨ Has elegido usar **{technique.name}**!", ephemeral=True)
+            
+            # Check if all players are ready
+            if self.combat_module.all_players_ready(self.channel_id):
+                # Create a CombatView instance to use its turn processing
+                combat_view = CombatView(self.combat_module, self.channel_id)
+                await combat_view._process_turn(interaction)
+
+        return technique_callback
 
 
 class RingoBot:
@@ -40,6 +362,7 @@ class RingoBot:
         self.quests_module = QuestsModule()
         self.wisdom_module = WisdomModule(config.WISDOMS_FILE)
         self.characters_module = CharactersModule()
+        self.combat_module = CombatModule()
 
         # Register event handlers
         self._register_events()
@@ -546,6 +869,241 @@ class RingoBot:
             await self._handle_modify_character(
                 ctx, usuario, nuevo_nombre, nueva_imagen
             )
+
+        # Admin enemy management commands
+        @admin.command(name="crear_enemigo", description="Crear un nuevo enemigo")
+        @discord.option("nombre", description="Nombre del enemigo", required=True)
+        @discord.option("descripcion", description="Descripción del enemigo", required=True)
+        @discord.option("hp", description="Puntos de vida máximos", required=True)
+        @discord.option("fuerza", description="Modificador de fuerza", required=False, default=0)
+        @discord.option("aguante", description="Modificador de aguante", required=False, default=0)
+        @discord.option("agilidad", description="Modificador de agilidad", required=False, default=0)
+        @discord.option("encanto", description="Modificador de encanto", required=False, default=0)
+        @discord.option("conocimiento", description="Modificador de conocimiento", required=False, default=0)
+        async def crear_enemigo(ctx: discord.ApplicationContext, nombre: str, descripcion: str, hp: int, 
+                               fuerza: int = 0, aguante: int = 0, agilidad: int = 0, encanto: int = 0, conocimiento: int = 0):
+            """Crear un nuevo enemigo."""
+            # Check if user is admin
+            if not any(role.name in config.ADMIN_ROLES for role in ctx.author.roles):
+                await ctx.respond("❌ Solo los administradores pueden crear enemigos.", ephemeral=True)
+                return
+
+            enemy_id = self.combat_module.create_enemy(
+                nombre, descripcion, hp, fuerza, aguante, agilidad, encanto, conocimiento, created_by=str(ctx.author.id)
+            )
+            
+            if enemy_id:
+                await ctx.respond(f"✅ Enemigo **{nombre}** creado con ID {enemy_id}.")
+            else:
+                await ctx.respond("❌ Error al crear enemigo.", ephemeral=True)
+
+        @admin.command(name="listar_enemigos", description="Listar todos los enemigos")
+        async def listar_enemigos(ctx: discord.ApplicationContext):
+            """Listar enemigos."""
+            # Check if user is admin
+            if not any(role.name in config.ADMIN_ROLES for role in ctx.author.roles):
+                await ctx.respond("❌ Solo los administradores pueden listar enemigos.", ephemeral=True)
+                return
+
+            enemies = self.combat_module.list_enemies()
+            
+            if not enemies:
+                await ctx.respond("No hay enemigos registrados.", ephemeral=True)
+                return
+
+            embed = discord.Embed(title="👹 Lista de Enemigos", color=discord.Color.dark_red())
+            
+            for enemy_id, name, description, max_hp in enemies:
+                embed.add_field(
+                    name=f"ID {enemy_id}: {name}",
+                    value=f"{description}\n❤️ HP: {max_hp}",
+                    inline=False
+                )
+
+            await ctx.respond(embed=embed)
+
+        @admin.command(name="eliminar_enemigo", description="Eliminar un enemigo")
+        @discord.option("enemigo_id", description="ID del enemigo a eliminar", required=True)
+        async def eliminar_enemigo(ctx: discord.ApplicationContext, enemigo_id: int):
+            """Eliminar un enemigo."""
+            # Check if user is admin
+            if not any(role.name in config.ADMIN_ROLES for role in ctx.author.roles):
+                await ctx.respond("❌ Solo los administradores pueden eliminar enemigos.", ephemeral=True)
+                return
+
+            success = self.combat_module.delete_enemy(enemigo_id)
+            
+            if success:
+                await ctx.respond(f"✅ Enemigo con ID {enemigo_id} eliminado.")
+            else:
+                await ctx.respond("❌ Error al eliminar enemigo o enemigo no encontrado.", ephemeral=True)
+
+        # Combat command group
+        combat = self.bot.create_group("combate", "Comandos para el sistema de combate RPG")
+
+        @combat.command(name="iniciar", description="Inicia un combate contra un enemigo")
+        @discord.option("enemigo_id", description="ID del enemigo a enfrentar", required=True)
+        @discord.option("participantes", description="Menciona a los participantes (@usuario1 @usuario2)", required=True)
+        async def iniciar_combate(ctx: discord.ApplicationContext, enemigo_id: int, participantes: str):
+            """Inicia un combate."""
+            # Check if user is admin
+            if not any(role.name in config.ADMIN_ROLES for role in ctx.author.roles):
+                await ctx.respond("❌ Solo los administradores pueden iniciar combates.", ephemeral=True)
+                return
+
+            # Parse participants from mentions
+            participant_ids = []
+            character_names = {}
+            
+            # Extract user IDs from mention strings like <@123456789>
+            import re
+            mention_pattern = r'<@!?(\d+)>'
+            user_ids = re.findall(mention_pattern, participantes)
+            
+            # If no mentions found, try to parse the author as single participant
+            if not user_ids:
+                user_ids = [str(ctx.author.id)]
+            
+            for user_id_str in user_ids:
+                try:
+                    user = await self.bot.fetch_user(int(user_id_str))
+                    character = self.characters_module.get_character(user_id_str)
+                    if character:
+                        participant_ids.append(user_id_str)
+                        character_names[user_id_str] = character[2]  # character_name
+                    else:
+                        await ctx.respond(f"❌ {user.display_name} no tiene un personaje registrado.", ephemeral=True)
+                        return
+                except (discord.NotFound, discord.HTTPException):
+                    await ctx.respond(f"❌ No se pudo encontrar el usuario con ID {user_id_str}.", ephemeral=True)
+                    return
+
+            if not participant_ids:
+                await ctx.respond("❌ No se encontraron participantes válidos.", ephemeral=True)
+                return
+
+            # Start combat
+            success = self.combat_module.start_combat(ctx.channel.id, enemigo_id, participant_ids, character_names)
+            if success:
+                await self._send_combat_embed(ctx)
+            else:
+                await ctx.respond("❌ No se pudo iniciar el combate. Verifica que el enemigo existe y no hay otro combate activo.", ephemeral=True)
+
+        @combat.command(name="terminar", description="Termina el combate actual en este canal")
+        async def terminar_combate(ctx: discord.ApplicationContext):
+            """Termina un combate."""
+            # Check if user is admin
+            if not any(role.name in config.ADMIN_ROLES for role in ctx.author.roles):
+                await ctx.respond("❌ Solo los administradores pueden terminar combates.", ephemeral=True)
+                return
+
+            success = self.combat_module.end_combat(ctx.channel.id)
+            if success:
+                await ctx.respond("⚔️ Combate terminado.")
+            else:
+                await ctx.respond("❌ No hay combate activo en este canal.", ephemeral=True)
+
+        @combat.command(name="estado", description="Muestra el estado actual del combate")
+        async def estado_combate(ctx: discord.ApplicationContext):
+            """Muestra el estado del combate."""
+            combat = self.combat_module.get_combat_session(ctx.channel.id)
+            if not combat:
+                await ctx.respond("❌ No hay combate activo en este canal.", ephemeral=True)
+                return
+
+            await self._send_combat_embed(ctx)
+
+        # Character combat stats commands
+        stats = self.bot.create_group("stats", "Comandos para estadísticas de combate")
+
+        @stats.command(name="ver", description="Ver las estadísticas de combate de un personaje")
+        @discord.option("usuario", description="Usuario del personaje (opcional)", required=False)
+        async def ver_stats(ctx: discord.ApplicationContext, usuario: discord.Member = None):
+            """Ver estadísticas de combate."""
+            target_user = usuario if usuario else ctx.author
+            
+            character = self.characters_module.get_character(str(target_user.id))
+            if not character:
+                await ctx.respond(f"❌ {'Ese usuario' if usuario else 'Tú'} no {'tiene' if usuario else 'tienes'} un personaje registrado.", ephemeral=True)
+                return
+
+            stats = self.combat_module.get_character_combat_stats(str(target_user.id))
+            if not stats:
+                await ctx.respond("❌ Error al obtener estadísticas.", ephemeral=True)
+                return
+
+            equipment_bonuses = self.combat_module.get_equipment_bonuses(str(target_user.id))
+            
+            embed = discord.Embed(
+                title=f"⚔️ Estadísticas de {character[2]}",
+                color=discord.Color.red()
+            )
+
+            embed.add_field(
+                name="💪 Fuerza", 
+                value=f"{stats.fuerza} + {equipment_bonuses.get('fuerza', 0)} = {stats.fuerza + equipment_bonuses.get('fuerza', 0)}", 
+                inline=True
+            )
+            embed.add_field(
+                name="🛡️ Aguante", 
+                value=f"{stats.aguante} + {equipment_bonuses.get('aguante', 0)} = {stats.aguante + equipment_bonuses.get('aguante', 0)}", 
+                inline=True
+            )
+            embed.add_field(
+                name="💨 Agilidad", 
+                value=f"{stats.agilidad} + {equipment_bonuses.get('agilidad', 0)} = {stats.agilidad + equipment_bonuses.get('agilidad', 0)}", 
+                inline=True
+            )
+            embed.add_field(
+                name="💫 Encanto", 
+                value=f"{stats.encanto} + {equipment_bonuses.get('encanto', 0)} = {stats.encanto + equipment_bonuses.get('encanto', 0)}", 
+                inline=True
+            )
+            embed.add_field(
+                name="🧠 Conocimiento", 
+                value=f"{stats.conocimiento} + {equipment_bonuses.get('conocimiento', 0)} = {stats.conocimiento + equipment_bonuses.get('conocimiento', 0)}", 
+                inline=True
+            )
+            embed.add_field(
+                name="❤️ Vida", 
+                value=f"{stats.max_hp + equipment_bonuses.get('max_hp', 0)}", 
+                inline=True
+            )
+
+            if stats.equipped_weapon or stats.equipped_armor:
+                equipment_text = []
+                if stats.equipped_weapon:
+                    equipment_text.append(f"🗡️ **Arma:** {stats.equipped_weapon}")
+                if stats.equipped_armor:
+                    equipment_text.append(f"🛡️ **Armadura:** {stats.equipped_armor}")
+                embed.add_field(name="🎒 Equipamiento", value="\n".join(equipment_text), inline=False)
+
+            await ctx.respond(embed=embed)
+
+        @stats.command(name="modificar", description="Modificar estadísticas de combate (Solo admins)")
+        @discord.option("usuario", description="Usuario del personaje", required=True)
+        @discord.option("stat", description="Estadística a modificar", choices=["fuerza", "aguante", "agilidad", "encanto", "conocimiento", "max_hp"], required=True)
+        @discord.option("valor", description="Nuevo valor", required=True)
+        async def modificar_stats(ctx: discord.ApplicationContext, usuario: discord.Member, stat: str, valor: int):
+            """Modificar estadísticas de combate."""
+            # Check if user is admin
+            if not any(role.name in config.ADMIN_ROLES for role in ctx.author.roles):
+                await ctx.respond("❌ Solo los administradores pueden modificar estadísticas.", ephemeral=True)
+                return
+
+            character = self.characters_module.get_character(str(usuario.id))
+            if not character:
+                await ctx.respond("❌ Ese usuario no tiene un personaje registrado.", ephemeral=True)
+                return
+
+            # Update stats
+            update_data = {f"{stat}_modifier": valor}
+            success = self.combat_module.update_combat_stats(str(usuario.id), **update_data)
+            
+            if success:
+                await ctx.respond(f"✅ {stat.capitalize()} de {character[2]} actualizada a {valor}.")
+            else:
+                await ctx.respond("❌ Error al actualizar estadísticas.", ephemeral=True)
 
     async def _handle_register_character(
         self, ctx: discord.ApplicationContext, nombre: str
@@ -1127,6 +1685,66 @@ class RingoBot:
                 color=discord.Color.red(),
             )
             await ctx.respond(embed=embed)
+
+    async def _send_combat_embed(self, ctx: discord.ApplicationContext):
+        """Send or update combat embed with action buttons."""
+        combat = self.combat_module.get_combat_session(ctx.channel.id)
+        if not combat:
+            return
+
+        embed = discord.Embed(
+            title=f"⚔️ Combate: {combat.enemy.name}",
+            description=combat.enemy.description,
+            color=discord.Color.red()
+        )
+
+        # Enemy status
+        hp_bar = self._create_hp_bar(combat.enemy.current_hp, combat.enemy.max_hp)
+        embed.add_field(
+            name="👹 Estado del Enemigo",
+            value=f"{hp_bar}\n❤️ {combat.enemy.current_hp}/{combat.enemy.max_hp} HP",
+            inline=False
+        )
+
+        # Player status
+        players_status = []
+        for participant in combat.participants:
+            status_icon = "💀" if not participant.is_alive else "⚔️"
+            hp_bar = self._create_hp_bar(participant.stats.current_hp, participant.stats.max_hp) if participant.is_alive else "💀💀💀💀💀"
+            status_effects = ""
+            if participant.status_effects:
+                effects = [effect.value for effect in participant.status_effects.keys()]
+                status_effects = f" ({', '.join(effects)})"
+            
+            players_status.append(f"{status_icon} **{participant.character_name}**{status_effects}\n{hp_bar} {participant.stats.current_hp}/{participant.stats.max_hp} HP")
+
+        embed.add_field(
+            name="🛡️ Participantes",
+            value="\n\n".join(players_status),
+            inline=False
+        )
+
+        # Turn phase
+        phase_text = "🎯 **Turno de los jugadores** - Selecciona tu acción" if combat.turn_phase == "player" else "👹 **Turno del enemigo**"
+        embed.add_field(name="📋 Fase", value=phase_text, inline=False)
+
+        # Create action buttons
+        view = CombatView(self.combat_module, ctx.channel.id) if combat.turn_phase == "player" else discord.ui.View()
+
+        # Always send a new message instead of editing
+        message = await ctx.send(embed=embed, view=view)
+        combat.message_id = message.id
+
+    def _create_hp_bar(self, current_hp: int, max_hp: int, length: int = 10) -> str:
+        """Create a visual HP bar."""
+        if max_hp <= 0:
+            return "💀" * length
+        
+        percentage = current_hp / max_hp
+        filled_length = int(length * percentage)
+        empty_length = length - filled_length
+        
+        return "🟩" * filled_length + "🟥" * empty_length
 
     def run(self):
         """Start the bot."""
