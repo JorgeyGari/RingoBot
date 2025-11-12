@@ -227,17 +227,15 @@ class CombatModule:
         self._populate_initial_equipment()
 
     def _populate_initial_techniques(self) -> None:
-        """Add some initial techniques to the database."""
-        initial_techniques = [
-            # Common techniques
-            ("Golpe Fuerte", "Un ataque poderoso que causa daño extra", "fuerza", "damage", 5, 1, "enemy", None, None),
-            ("Defensa", "Aumenta temporalmente la defensa", "aguante", "buff", 3, 2, "self", None, None),
-            ("Esquivar", "Aumenta la agilidad temporalmente", "agilidad", "buff", 2, 1, "self", None, None),
-            ("Intimidar", "Intenta aterrorizar al enemigo", "encanto", "status", 0, 3, "enemy", "terror", None),
-            ("Curación", "Restaura puntos de vida", "conocimiento", "heal", 15, 2, "self", None, None),
-            ("Ataque Venenoso", "Ataque que puede causar náuseas", "agilidad", "status", 2, 2, "enemy", "nauseas", None),
-            ("Recuerdo Doloroso", "Causa nostalgia al enemigo", "encanto", "status", 0, 4, "enemy", "nostalgia", None),
-        ]
+        """Load techniques from CSV file."""
+        import csv
+        import os
+        
+        techniques_file = os.path.join("data", "techniques.csv")
+        
+        if not os.path.exists(techniques_file):
+            logger.warning(f"Techniques file {techniques_file} not found, skipping technique population")
+            return
 
         conn = self._create_connection()
         if not conn:
@@ -245,16 +243,35 @@ class CombatModule:
 
         try:
             cursor = conn.cursor()
-            for technique in initial_techniques:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO techniques 
-                    (name, description, associated_stat, effect_type, effect_value, cost, target, status_effect, character_specific)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, technique)
+            
+            with open(techniques_file, 'r', encoding='utf-8') as file:
+                csv_reader = csv.DictReader(file)
+                
+                for row in csv_reader:
+                    # Convert empty strings to None for optional fields
+                    status_effect = row['status_effect'] if row['status_effect'].strip() else None
+                    character_specific = row['character_specific'] if row['character_specific'].strip() else None
+                    
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO techniques 
+                        (name, description, associated_stat, effect_type, effect_value, cost, target, status_effect, character_specific)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        row['name'],
+                        row['description'],
+                        row['associated_stat'],
+                        row['effect_type'],
+                        int(row['effect_value']),
+                        int(row['cost']),
+                        row['target'],
+                        status_effect,
+                        character_specific
+                    ))
+                    
             conn.commit()
-            logger.info("Initial techniques populated")
+            logger.info("Techniques loaded from CSV file")
         except Exception as e:
-            logger.error(f"Error populating initial techniques: {e}")
+            logger.error(f"Error loading techniques from CSV: {e}")
         finally:
             conn.close()
 

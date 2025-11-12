@@ -1,0 +1,8 @@
+name,description,associated_stat,effect_type,effect_value,cost,target,status_effect,character_specific
+Golpe Fuerte,Un ataque poderoso que causa daño extra,fuerza,damage,5,1,enemy,,
+Defensa,Aumenta temporalmente la defensa,aguante,buff,3,2,self,,
+Esquivar,Aumenta la agilidad temporalmente,agilidad,buff,2,1,self,,
+Intimidar,Intenta aterrorizar al enemigo,encanto,status,0,3,enemy,terror,
+Curación,Restaura puntos de vida,conocimiento,heal,15,2,self,,
+Ataque Venenoso,Ataque que puede causar náuseas,agilidad,status,2,2,enemy,nauseas,
+Recuerdo Doloroso,Causa nostalgia al enemigo,encanto,status,0,4,enemy,nostalgia,
