@@ -79,7 +79,12 @@ class RingoBot:
             # Handle regular message replies
             reply = self.replies_module.handle_message(message.content)
             if reply:
-                await message.reply(reply, mention_author=True)
+                # Check if reply is an emoji reaction
+                if reply.startswith("emoji_react:"):
+                    emoji = reply[12:]  # Remove "emoji_react:" prefix
+                    await message.add_reaction(emoji)
+                else:
+                    await message.reply(reply, mention_author=True)
 
         @self.bot.event
         async def on_reaction_add(reaction, user):

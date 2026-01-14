@@ -28,7 +28,8 @@ class RepliesModule:
 
         # Greeting
         if p_message.startswith("hola"):
-            return "¡Hola!"
+            if random.randint(1, 6) == 6:
+                return "¡Hola!"
 
         # Help command
         if p_message.startswith("!ayuda"):
@@ -67,7 +68,7 @@ class RepliesModule:
 
         # Bot mention
         if "ringobot" in p_message:
-            return "¿Qué? ¿Me has llamado?"
+            return "emoji_react:👋"
 
         # Suicide prevention
         suicide_phrases = [
