@@ -68,7 +68,7 @@ class RepliesModule:
 
         # Bot mention
         if "ringobot" in p_message:
-            return "emoji_react:👋"
+            return "emoji_react:waving_hand"
 
         # Suicide prevention
         suicide_phrases = [

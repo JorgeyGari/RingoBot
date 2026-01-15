@@ -72,7 +72,7 @@ class RingoBot:
             if message.content.startswith("$"):
                 msg = message.content[1:]
                 reply = self.replies_module.handle_message(msg)
-                if reply:
+                if reply and not reply.startswith("emoji_react:"):
                     await message.author.send(reply)
                 return
 
@@ -81,7 +81,9 @@ class RingoBot:
             if reply:
                 # Check if reply is an emoji reaction
                 if reply.startswith("emoji_react:"):
-                    emoji = reply[12:]  # Remove "emoji_react:" prefix
+                    emoji_name = reply[12:]  # Remove "emoji_react:" prefix
+                    emoji_map = {"waving_hand": "👋"}
+                    emoji = emoji_map.get(emoji_name, emoji_name)
                     await message.add_reaction(emoji)
                 else:
                     await message.reply(reply, mention_author=True)
