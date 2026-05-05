@@ -3,9 +3,9 @@ Wisdom module for handling wisdom quotes and user submissions.
 """
 
 import csv
-import asyncio
 import logging
 import random
+import asyncio
 import unicodedata
 import re
 from pathlib import Path
@@ -31,7 +31,6 @@ class WisdomModule:
     def __init__(self, csv_path: str):
         """Initialize the wisdom module and load existing wisdoms."""
         self._path = Path(csv_path)
-        self._lock = asyncio.Lock()
         self._wisdoms: List[Dict[str, str]] = []
         self._load()
         logger.info(f"WisdomModule initialized with {len(self._wisdoms)} wisdoms")
@@ -45,6 +44,7 @@ class WisdomModule:
                 with open(self._path, "r", encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     self._wisdoms = list(reader) if reader else []
+                logger.info(f"Loaded {len(self._wisdoms)} wisdoms from CSV")
             except Exception as e:
                 logger.error(f"Error loading wisdoms from CSV: {e}")
                 self._wisdoms = []
@@ -60,63 +60,61 @@ class WisdomModule:
         except Exception as e:
             logger.error(f"Error creating wisdoms CSV: {e}")
 
-    async def _write_csv(self):
-        """Write current wisdoms to CSV file asynchronously."""
-        def _write():
-            try:
-                with open(self._path, "w", encoding="utf-8", newline="") as f:
-                    writer = csv.DictWriter(f, fieldnames=["text", "date_added", "added_by"])
-                    writer.writeheader()
-                    writer.writerows(self._wisdoms)
-            except Exception as e:
-                logger.error(f"Error writing wisdoms to CSV: {e}")
-                raise
+    def _save_csv_sync(self):
+        """Save wisdoms to CSV file synchronously."""
+        try:
+            with open(self._path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=["text", "date_added", "added_by"])
+                writer.writeheader()
+                writer.writerows(self._wisdoms)
+        except Exception as e:
+            logger.error(f"Error saving wisdoms to CSV: {e}", exc_info=True)
+            raise
 
-        await asyncio.to_thread(_write)
-
-    async def get_random(self) -> Optional[str]:
+    def get_random(self) -> Optional[str]:
         """Get a random wisdom text."""
-        async with self._lock:
-            if not self._wisdoms:
-                return None
-            return random.choice(self._wisdoms)["text"]
+        if not self._wisdoms:
+            return None
+        return random.choice(self._wisdoms)["text"]
 
     async def add(self, text: str, user: str) -> float:
         """Add a new wisdom and return its probability percentage."""
-        async with self._lock:
-            wisdom_entry = {
-                "text": text,
-                "date_added": datetime.now().isoformat(),
-                "added_by": user,
-            }
-            self._wisdoms.append(wisdom_entry)
+        wisdom_entry = {
+            "text": text,
+            "date_added": datetime.now().isoformat(),
+            "added_by": user,
+        }
+        self._wisdoms.append(wisdom_entry)
+        self._save_csv_sync()
 
-        await self._write_csv()
         probability = 100.0 / len(self._wisdoms)
         logger.info(f"Added wisdom by {user}: {text[:50]}...")
         return probability
 
     async def handle_wisdom_command(self, ctx: discord.ApplicationContext, sabiduría: Optional[str]):
-        """Handle the /sabiduría slash command."""
+        """Handle the /sabiduria slash command."""
         try:
             if sabiduría:
                 # User is submitting a new wisdom
                 user_name = ctx.user.name
                 probability = await self.add(sabiduría, user_name)
                 confirmation = (
-                    f'Has registrado la sabiduría: «{sabiduría}»; '
-                    f'tiene un {probability:.2f} % de probabilidades de aparecer.'
+                    f'Has registrado la sabiduría: «{sabiduría}».\n'
+                    f'Tiene un {probability:.2f} % de probabilidades de aparecer.'
                 )
                 await ctx.respond(confirmation, ephemeral=True)
             else:
                 # User is requesting a random wisdom
-                wisdom = await self.get_random()
+                wisdom = self.get_random()
                 if wisdom:
                     await ctx.respond(f'💭 {wisdom}')
                 else:
-                    await ctx.respond("Aún no tengo sabiduría que compartir contigo. Comparte la tuya conmigo.", ephemeral=True)
+                    await ctx.respond(
+                        "Aún no tengo sabiduría que compartir contigo. ¿Tienes alguna para mí?",
+                        ephemeral=True
+                    )
         except Exception as e:
-            logger.error(f"Error handling wisdom command: {e}")
+            logger.error(f"Error handling wisdom command: {e}", exc_info=True)
             await ctx.respond(
                 "Error al procesar tu sabiduría. Inténtalo de nuevo.",
                 ephemeral=True,
@@ -125,8 +123,8 @@ class WisdomModule:
     async def handle_wisdom_message(self, message: discord.Message):
         """Handle the message trigger for wisdom queries."""
         try:
-            wisdom = await self.get_random()
+            wisdom = self.get_random()
             if wisdom:
-                await message.reply(f'💭 {wisdom}', mention_author=False)
+                await message.reply(f'{wisdom}', mention_author=False)
         except Exception as e:
             logger.error(f"Error handling wisdom message: {e}")

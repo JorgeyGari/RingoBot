@@ -62,6 +62,8 @@ class RingoBot:
         @self.bot.event
         async def on_ready():
             logger.info(f"¡{self.bot.user} se ha conectado!")
+            await self.bot.sync_commands()
+            logger.info("Commands synced with Discord")
 
         @self.bot.event
         async def on_message(message: discord.Message):
@@ -147,19 +149,15 @@ class RingoBot:
             await self.music_module.play_youtube_music(ctx, self.bot, link)
 
         # Wisdom command
-        @self.bot.slash_command(
-            name="sabiduría",
-            description="Pídele a RingoBot que comparta su infinita sabiduría (o comparte la tuya).",
-        )
+        @self.bot.slash_command(name="sabiduria")
         @discord.option(
             "nueva",
-            description="Comparte tu sabiduría con Ringobot para que la comparta con los demás ringos.",
+            description="Sabiduría a registrar.",
             required=False,
-            default=None,
         )
-        async def sabiduría(ctx: discord.ApplicationContext, nueva: str):
-            """Comparte o consulta una sabiduría."""
-            await self.wisdom_module.handle_wisdom_command(ctx, nueva)
+        async def sabiduria(ctx: discord.ApplicationContext, nueva: str = ""):
+            """Pídele a RingoBot que comparta su infinita sabiduría (o comparte la tuya)."""
+            await self.wisdom_module.handle_wisdom_command(ctx, nueva if nueva else None)
 
         # Escape room command group
         escape = self.bot.create_group(
@@ -246,7 +244,7 @@ class RingoBot:
             await self.discape_module.handle_join_command(ctx)
 
         # Mission/Quest command group
-        mission = self.bot.create_group("misión", "Comandos para misiones de rol")
+        mission = self.bot.create_group("mision", "Comandos para misiones de rol")
 
         @mission.command(name="solicitar", description="Solicita una misión.")
         async def solicitar(ctx: discord.ApplicationContext):
