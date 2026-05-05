@@ -36,6 +36,7 @@ class Config:
     DOWNLOADS_DIR = "downloads"
     DISCAPE_FILE = "data/file.xlsx"
     PRIZES_FILE = "data/prizes.csv"
+    WISDOMS_FILE = "data/wisdoms.csv"
 
     # Music Configuration
     YTDL_OPTS = {

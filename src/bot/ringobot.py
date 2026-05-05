@@ -13,6 +13,7 @@ from modules.dice import DiceModule
 from modules.music import MusicModule
 from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
+from modules.wisdom import WisdomModule, _normalize, _WISDOM_TRIGGER
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class RingoBot:
         self.music_module = MusicModule()
         self.discape_module = DiscapeModule()
         self.quests_module = QuestsModule()
+        self.wisdom_module = WisdomModule(config.WISDOMS_FILE)
 
         # Register event handlers
         self._register_events()
@@ -74,6 +76,11 @@ class RingoBot:
                 reply = self.replies_module.handle_message(msg)
                 if reply and not reply.startswith("emoji_react:"):
                     await message.author.send(reply)
+                return
+
+            # Handle wisdom message trigger
+            if _WISDOM_TRIGGER.search(_normalize(message.content)):
+                await self.wisdom_module.handle_wisdom_message(message)
                 return
 
             # Handle regular message replies
@@ -138,6 +145,21 @@ class RingoBot:
         async def ytmusic(ctx: discord.ApplicationContext, link: str):
             """Reproduce música de YouTube en tu canal de voz."""
             await self.music_module.play_youtube_music(ctx, self.bot, link)
+
+        # Wisdom command
+        @self.bot.slash_command(
+            name="sabiduría",
+            description="Pídele a RingoBot que comparta su infinita sabiduría (o comparte la tuya).",
+        )
+        @discord.option(
+            "nueva",
+            description="Comparte tu sabiduría con Ringobot para que la comparta con los demás ringos.",
+            required=False,
+            default=None,
+        )
+        async def sabiduría(ctx: discord.ApplicationContext, nueva: str):
+            """Comparte o consulta una sabiduría."""
+            await self.wisdom_module.handle_wisdom_command(ctx, nueva)
 
         # Escape room command group
         escape = self.bot.create_group(
