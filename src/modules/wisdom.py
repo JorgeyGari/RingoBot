@@ -60,16 +60,19 @@ class WisdomModule:
         except Exception as e:
             logger.error(f"Error creating wisdoms CSV: {e}")
 
-    def _write_csv(self):
-        """Write current wisdoms to CSV file."""
-        try:
-            with open(self._path, "w", encoding="utf-8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=["text", "date_added", "added_by"])
-                writer.writeheader()
-                writer.writerows(self._wisdoms)
-        except Exception as e:
-            logger.error(f"Error writing wisdoms to CSV: {e}")
-            raise
+    async def _write_csv(self):
+        """Write current wisdoms to CSV file asynchronously."""
+        def _write():
+            try:
+                with open(self._path, "w", encoding="utf-8", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=["text", "date_added", "added_by"])
+                    writer.writeheader()
+                    writer.writerows(self._wisdoms)
+            except Exception as e:
+                logger.error(f"Error writing wisdoms to CSV: {e}")
+                raise
+
+        await asyncio.to_thread(_write)
 
     async def get_random(self) -> Optional[str]:
         """Get a random wisdom text."""
@@ -88,7 +91,7 @@ class WisdomModule:
             }
             self._wisdoms.append(wisdom_entry)
 
-        self._write_csv()
+        await self._write_csv()
         probability = 100.0 / len(self._wisdoms)
         logger.info(f"Added wisdom by {user}: {text[:50]}...")
         return probability
