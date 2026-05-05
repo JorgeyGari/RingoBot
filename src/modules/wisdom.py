@@ -107,7 +107,7 @@ class WisdomModule:
                 # User is requesting a random wisdom
                 wisdom = self.get_random()
                 if wisdom:
-                    await ctx.respond(f'💭 {wisdom}')
+                    await ctx.respond(f'{wisdom}')
                 else:
                     await ctx.respond(
                         "Aún no tengo sabiduría que compartir contigo. ¿Tienes alguna para mí?",
