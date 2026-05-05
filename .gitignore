@@ -29,6 +29,7 @@ temp/
 data/file.xlsx
 data/*.db*
 downloads/
+data/wisdoms.csv
 
 # OS files
 .DS_Store
@@ -43,3 +44,6 @@ Thumbs.db
 
 # Lock files
 *.~lock*
+
+# Claude
+CLAUDE.md
