@@ -71,11 +71,12 @@ class WisdomModule:
             logger.error(f"Error writing wisdoms to CSV: {e}")
             raise
 
-    def get_random(self) -> Optional[str]:
+    async def get_random(self) -> Optional[str]:
         """Get a random wisdom text."""
-        if not self._wisdoms:
-            return None
-        return random.choice(self._wisdoms)["text"]
+        async with self._lock:
+            if not self._wisdoms:
+                return None
+            return random.choice(self._wisdoms)["text"]
 
     async def add(self, text: str, user: str) -> float:
         """Add a new wisdom and return its probability percentage."""
@@ -86,8 +87,8 @@ class WisdomModule:
                 "added_by": user,
             }
             self._wisdoms.append(wisdom_entry)
-            self._write_csv()
 
+        self._write_csv()
         probability = 100.0 / len(self._wisdoms)
         logger.info(f"Added wisdom by {user}: {text[:50]}...")
         return probability
@@ -106,7 +107,7 @@ class WisdomModule:
                 await ctx.respond(confirmation, ephemeral=True)
             else:
                 # User is requesting a random wisdom
-                wisdom = self.get_random()
+                wisdom = await self.get_random()
                 if wisdom:
                     await ctx.respond(f'💭 {wisdom}')
                 else:
@@ -121,7 +122,7 @@ class WisdomModule:
     async def handle_wisdom_message(self, message: discord.Message):
         """Handle the message trigger for wisdom queries."""
         try:
-            wisdom = self.get_random()
+            wisdom = await self.get_random()
             if wisdom:
                 await message.reply(f'💭 {wisdom}', mention_author=False)
         except Exception as e:
