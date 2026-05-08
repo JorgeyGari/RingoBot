@@ -33,11 +33,16 @@ class WisdomSelect(Select):
     def __init__(self, wisdoms: List[Dict[str, str]], user_name: str, module: "WisdomModule"):
         self.module = module
         self.user_name = user_name
+        self.wisdom_map = {}
         options = []
+        idx = 0
         for wisdom in wisdoms:
             if wisdom.get("added_by") == user_name:
                 label = wisdom["text"][:100]
-                options.append(discord.SelectOption(label=label, value=wisdom["text"]))
+                value = str(idx)
+                self.wisdom_map[value] = wisdom["text"]
+                options.append(discord.SelectOption(label=label, value=value))
+                idx += 1
 
         super().__init__(
             placeholder="Elige una sabiduría para eliminar",
@@ -48,7 +53,8 @@ class WisdomSelect(Select):
 
     async def callback(self, interaction: discord.Interaction):
         """Handle wisdom deletion."""
-        selected_text = self.values[0]
+        selected_idx = self.values[0]
+        selected_text = self.wisdom_map[selected_idx]
         if self.module.delete(selected_text, self.user_name):
             await interaction.response.edit_message(
                 content=f'Sabiduría eliminada: «{selected_text}».',
