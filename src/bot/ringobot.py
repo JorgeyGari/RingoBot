@@ -148,16 +148,28 @@ class RingoBot:
             """Reproduce música de YouTube en tu canal de voz."""
             await self.music_module.play_youtube_music(ctx, self.bot, link)
 
-        # Wisdom command
-        @self.bot.slash_command(name="sabiduria")
+        # Wisdom command group
+        sabiduria = self.bot.create_group("sabiduria", "Comandos para gestionar la sabiduría")
+
+        @sabiduria.command(name="aleatoria", description="Obtén una sabiduría aleatoria")
+        async def sabiduria_aleatoria(ctx: discord.ApplicationContext):
+            """Pídele a RingoBot que comparta su infinita sabiduría."""
+            await self.wisdom_module.handle_wisdom_command(ctx, None)
+
+        @sabiduria.command(name="nueva", description="Registra una nueva sabiduría")
         @discord.option(
-            "nueva",
-            description="Sabiduría a registrar.",
-            required=False,
+            "texto",
+            description="La sabiduría a registrar.",
+            required=True,
         )
-        async def sabiduria(ctx: discord.ApplicationContext, nueva: str = ""):
-            """Pídele a RingoBot que comparta su infinita sabiduría (o comparte la tuya)."""
-            await self.wisdom_module.handle_wisdom_command(ctx, nueva if nueva else None)
+        async def sabiduria_nueva(ctx: discord.ApplicationContext, texto: str):
+            """Registra una nueva sabiduría."""
+            await self.wisdom_module.handle_wisdom_command(ctx, texto)
+
+        @sabiduria.command(name="eliminar", description="Elimina una de tus sabidurías")
+        async def sabiduria_eliminar(ctx: discord.ApplicationContext):
+            """Elimina una de tus sabidurías."""
+            await self.wisdom_module.handle_delete_command(ctx)
 
         # Escape room command group
         escape = self.bot.create_group(
