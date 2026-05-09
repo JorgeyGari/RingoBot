@@ -248,8 +248,9 @@ class WisdomModule:
                 user_name = ctx.user.name
                 probability = await self.add(sabiduría, user_name)
                 confirmation = (
-                    f'Has registrado la sabiduría: «{sabiduría}».\n'
-                    f'Tiene un {probability:.2f} % de probabilidad de aparecer (cuanto más tiempo pase, más subirá esta probabilidad).'
+                    f'Has registrado la sabiduría n.º {len(self._wisdoms)}:\n'
+                    f'> {sabiduría}\n'
+                    f'-# Probabilidad de aparecer: {probability:.2f} %.'
                 )
                 await ctx.respond(confirmation, ephemeral=True)
             else:
