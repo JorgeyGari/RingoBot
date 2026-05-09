@@ -150,14 +150,14 @@ class WisdomModule:
                 target_idx = idx
             last_shown = wisdom.get("last_shown", "")
             if not last_shown:
-                weight = 31
+                weight = 2_592_000  # 30 days in seconds
             else:
                 try:
                     last_shown_dt = datetime.fromisoformat(last_shown)
-                    days_since = (datetime.now() - last_shown_dt).days
-                    weight = max(1, days_since + 1)
+                    seconds_since = (datetime.now() - last_shown_dt).total_seconds()
+                    weight = max(1, int(seconds_since) + 1)
                 except ValueError:
-                    weight = 31
+                    weight = 2_592_000
             weights.append(weight)
 
         if target_idx is None:
@@ -175,14 +175,14 @@ class WisdomModule:
         for wisdom in self._wisdoms:
             last_shown = wisdom.get("last_shown", "")
             if not last_shown:
-                weight = 31
+                weight = 2_592_000  # 30 days in seconds
             else:
                 try:
                     last_shown_dt = datetime.fromisoformat(last_shown)
-                    days_since = (datetime.now() - last_shown_dt).days
-                    weight = max(1, days_since + 1)
+                    seconds_since = (datetime.now() - last_shown_dt).total_seconds()
+                    weight = max(1, int(seconds_since) + 1)
                 except ValueError:
-                    weight = 31
+                    weight = 2_592_000
             weights.append(weight)
 
         chosen = random.choices(self._wisdoms, weights=weights, k=1)[0]
