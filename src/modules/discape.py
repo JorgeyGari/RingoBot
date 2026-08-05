@@ -417,7 +417,6 @@ class DiscapeModule:
                         return self.unlock_item(room, choice)
                     elif row[3].value and row[3].value.startswith("Puzle"):
                         puzzle_name = row[3].value.split(" ")[1]
-                        # Would need to import puzzles module here
                         return f"Puzzle: {puzzle_name} (not implemented yet)"
                     else:
                         # Navigate to new location
