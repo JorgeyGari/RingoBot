@@ -4,8 +4,6 @@ Main RingoBot class that manages the Discord bot and its modules.
 
 import discord
 import logging
-import sys
-from typing import Optional, List
 
 from utils.config import config
 from modules.replies import RepliesModule
@@ -13,6 +11,7 @@ from modules.dice import DiceModule
 from modules.music import MusicModule
 from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
+from modules.wisdom import WisdomModule, _normalize, _WISDOM_TRIGGER
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +22,7 @@ class RingoBot:
     def __init__(self):
         """Initialize the bot and its modules."""
         # Validate configuration
-        config_errors = config.validate_config()
-        if config_errors:
-            logger.error("Configuration errors:")
-            for error in config_errors:
-                logger.error(f"  - {error}")
-            sys.exit(1)
+        config.validate_config()
 
         # Set up Discord intents
         intents = discord.Intents.all()
@@ -42,6 +36,7 @@ class RingoBot:
         self.music_module = MusicModule()
         self.discape_module = DiscapeModule()
         self.quests_module = QuestsModule()
+        self.wisdom_module = WisdomModule(config.WISDOMS_FILE)
 
         # Register event handlers
         self._register_events()
@@ -60,6 +55,8 @@ class RingoBot:
         @self.bot.event
         async def on_ready():
             logger.info(f"¡{self.bot.user} se ha conectado!")
+            await self.bot.sync_commands()
+            logger.info("Commands synced with Discord")
 
         @self.bot.event
         async def on_message(message: discord.Message):
@@ -72,14 +69,26 @@ class RingoBot:
             if message.content.startswith("$"):
                 msg = message.content[1:]
                 reply = self.replies_module.handle_message(msg)
-                if reply:
+                if reply and not reply.startswith("emoji_react:"):
                     await message.author.send(reply)
+                return
+
+            # Handle wisdom message trigger
+            if _WISDOM_TRIGGER.search(_normalize(message.content)):
+                await self.wisdom_module.handle_wisdom_message(message)
                 return
 
             # Handle regular message replies
             reply = self.replies_module.handle_message(message.content)
             if reply:
-                await message.reply(reply, mention_author=True)
+                # Check if reply is an emoji reaction
+                if reply.startswith("emoji_react:"):
+                    emoji_name = reply[12:]  # Remove "emoji_react:" prefix
+                    emoji_map = {"waving_hand": "👋"}
+                    emoji = emoji_map.get(emoji_name, emoji_name)
+                    await message.add_reaction(emoji)
+                else:
+                    await message.reply(reply, mention_author=True)
 
         @self.bot.event
         async def on_reaction_add(reaction, user):
@@ -103,6 +112,19 @@ class RingoBot:
 
     def _register_commands(self):
         """Register slash commands."""
+
+        # Autocomplete callbacks. The modules already return [] on their own
+        # errors, so these only need to pull the player name off the context.
+        investigables = lambda ctx: self.discape_module.get_investigation_options(
+            ctx.interaction.user.name
+        )
+        equipables = lambda ctx: self.discape_module.get_equipable_items_for_player(
+            ctx.interaction.user.name
+        )
+        misiones = lambda ctx: self.quests_module.get_quest_options_for_player(
+            ctx.interaction.user.name
+        )
+        solicitantes = lambda ctx: self.quests_module.get_users_with_pending_requests()
 
         # Dice rolling command
         @self.bot.slash_command()
@@ -131,6 +153,29 @@ class RingoBot:
         async def ytmusic(ctx: discord.ApplicationContext, link: str):
             """Reproduce música de YouTube en tu canal de voz."""
             await self.music_module.play_youtube_music(ctx, self.bot, link)
+
+        # Wisdom command group
+        sabiduria = self.bot.create_group("sabiduria", "Comandos para gestionar la sabiduría")
+
+        @sabiduria.command(name="aleatoria", description="Obtén una sabiduría aleatoria")
+        async def sabiduria_aleatoria(ctx: discord.ApplicationContext):
+            """Pídele a RingoBot que comparta su infinita sabiduría."""
+            await self.wisdom_module.handle_wisdom_command(ctx, None)
+
+        @sabiduria.command(name="nueva", description="Registra una nueva sabiduría")
+        @discord.option(
+            "texto",
+            description="La sabiduría a registrar.",
+            required=True,
+        )
+        async def sabiduria_nueva(ctx: discord.ApplicationContext, texto: str):
+            """Registra una nueva sabiduría."""
+            await self.wisdom_module.handle_wisdom_command(ctx, texto)
+
+        @sabiduria.command(name="eliminar", description="Elimina una de tus sabidurías")
+        async def sabiduria_eliminar(ctx: discord.ApplicationContext):
+            """Elimina una de tus sabidurías."""
+            await self.wisdom_module.handle_delete_command(ctx)
 
         # Escape room command group
         escape = self.bot.create_group(
@@ -165,9 +210,7 @@ class RingoBot:
         @discord.option(
             "objetivo",
             description="¿Qué quieres investigar?",
-            autocomplete=discord.utils.basic_autocomplete(
-                self._get_investigation_options
-            ),
+            autocomplete=discord.utils.basic_autocomplete(investigables),
             required=True,
         )
         async def investigar(ctx: discord.ApplicationContext, objetivo: str):
@@ -185,7 +228,7 @@ class RingoBot:
         @discord.option(
             "objeto",
             description="¿Qué objeto quieres equipar?",
-            autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
+            autocomplete=discord.utils.basic_autocomplete(equipables),
             required=True,
         )
         async def equipar(ctx: discord.ApplicationContext, objeto: str):
@@ -196,13 +239,13 @@ class RingoBot:
         @discord.option(
             "objeto1",
             description="¿Qué objeto quieres combinar?",
-            autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
+            autocomplete=discord.utils.basic_autocomplete(equipables),
             required=True,
         )
         @discord.option(
             "objeto2",
             description="¿Con qué objeto quieres combinarlo?",
-            autocomplete=discord.utils.basic_autocomplete(self._get_equipable_items),
+            autocomplete=discord.utils.basic_autocomplete(equipables),
             required=True,
         )
         async def combinar(ctx: discord.ApplicationContext, objeto1: str, objeto2: str):
@@ -217,7 +260,7 @@ class RingoBot:
             await self.discape_module.handle_join_command(ctx)
 
         # Mission/Quest command group
-        mission = self.bot.create_group("misión", "Comandos para misiones de rol")
+        mission = self.bot.create_group("mision", "Comandos para misiones de rol")
 
         @mission.command(name="solicitar", description="Solicita una misión.")
         async def solicitar(ctx: discord.ApplicationContext):
@@ -228,9 +271,7 @@ class RingoBot:
         @discord.option(
             "jugador",
             description="Jugador al que asignar la misión.",
-            autocomplete=discord.utils.basic_autocomplete(
-                self._get_pending_quest_users
-            ),
+            autocomplete=discord.utils.basic_autocomplete(solicitantes),
             required=True,
         )
         @discord.option(
@@ -254,53 +295,14 @@ class RingoBot:
         @discord.option(
             "misión",
             description="Misión que has completado.",
-            autocomplete=discord.utils.basic_autocomplete(self._get_quest_options),
+            autocomplete=discord.utils.basic_autocomplete(misiones),
             required=True,
         )
         async def completar(ctx: discord.ApplicationContext, misión: str):
             """Completa una misión."""
             await self.quests_module.handle_complete_command(ctx, misión)
 
-    def _get_investigation_options(self, ctx: discord.AutocompleteContext) -> List[str]:
-        """Get autocomplete options for investigation command."""
-        try:
-            player_name = ctx.interaction.user.name
-            return self.discape_module.get_investigation_options(player_name)
-        except Exception as e:
-            logger.error(f"Error getting investigation options: {e}")
-            return []
-
-    def _get_equipable_items(self, ctx: discord.AutocompleteContext) -> List[str]:
-        """Get autocomplete options for equipable items."""
-        try:
-            player_name = ctx.interaction.user.name
-            return self.discape_module.get_equipable_items_for_player(player_name)
-        except Exception as e:
-            logger.error(f"Error getting equipable items: {e}")
-            return []
-
-    def _get_quest_options(self, ctx: discord.AutocompleteContext) -> List[str]:
-        """Get autocomplete options for active quests."""
-        try:
-            player_name = ctx.interaction.user.name
-            return self.quests_module.get_quest_options_for_player(player_name)
-        except Exception as e:
-            logger.error(f"Error getting quest options: {e}")
-            return []
-
-    def _get_pending_quest_users(self, ctx: discord.AutocompleteContext) -> List[str]:
-        """Get autocomplete options for users with pending quest requests."""
-        try:
-            return self.quests_module.get_users_with_pending_requests()
-        except Exception as e:
-            logger.error(f"Error getting pending quest users: {e}")
-            return []
-
     def run(self):
         """Start the bot."""
         logger.info("Starting RingoBot...")
-        try:
-            self.bot.run(config.TOKEN)
-        except Exception as e:
-            logger.error(f"Failed to start bot: {e}")
-            sys.exit(1)
+        self.bot.run(config.TOKEN)

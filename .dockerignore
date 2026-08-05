@@ -51,17 +51,6 @@ tmp/
 temp/
 _trial_temp/
 
-# Old project structure files (to avoid conflicts)
-bot.py
-config.py
-dice.py
-discape.py
-main.py
-music.py
-puzzles.py
-quests.py
-replies.py
-
 # Documentation (README files will be included)
 *.md
 !README.md

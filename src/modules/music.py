@@ -3,9 +3,9 @@ Music module for YouTube music playback functionality.
 """
 
 import os
+import shutil
 import yt_dlp
 import discord
-from discord.ext import commands
 import asyncio
 import logging
 
@@ -23,14 +23,7 @@ class MusicModule:
         os.makedirs(config.DOWNLOADS_DIR, exist_ok=True)
 
         # Check for FFmpeg availability
-        self.ffmpeg_path = self._find_ffmpeg()
-        self.ffmpeg_available = self.ffmpeg_path is not None
-
-    def _find_ffmpeg(self) -> str:
-        """Find FFmpeg executable path."""
-        import shutil
-
-        return shutil.which("ffmpeg")
+        self.ffmpeg_path = shutil.which("ffmpeg")
 
     def download_audio(self, link: str) -> str:
         """
@@ -43,19 +36,14 @@ class MusicModule:
             Path to downloaded audio file
 
         Raises:
-            Exception: If download fails
+            yt_dlp.DownloadError: If download fails
         """
-        try:
-            with yt_dlp.YoutubeDL(config.YTDL_OPTS) as ydl:
-                info = ydl.extract_info(link, download=True)
-                filename = ydl.prepare_filename(info)
-                # Replace extension with .mp3
-                base_name, _ = os.path.splitext(filename)
-                audio_file = base_name + ".mp3"
-                return audio_file
-        except Exception as e:
-            logger.error(f"Error downloading audio: {e}")
-            raise Exception(f"Error downloading audio: {e}")
+        with yt_dlp.YoutubeDL(config.YTDL_OPTS) as ydl:
+            info = ydl.extract_info(link, download=True)
+            filename = ydl.prepare_filename(info)
+            # Replace extension with .mp3
+            base_name, _ = os.path.splitext(filename)
+            return base_name + ".mp3"
 
     async def play_youtube_music(self, ctx, bot, link: str):
         """
@@ -85,7 +73,7 @@ class MusicModule:
             audio_file = self.download_audio(link)
 
             # Check if FFmpeg is available
-            if not self.ffmpeg_available:
+            if not self.ffmpeg_path:
                 await ctx.send(
                     "No se encontró el ejecutable de FFmpeg.", ephemeral=True
                 )

@@ -4,7 +4,6 @@ Centralizes all configuration values and environment variables.
 """
 
 import os
-from typing import Dict, List
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -36,6 +35,7 @@ class Config:
     DOWNLOADS_DIR = "downloads"
     DISCAPE_FILE = "data/file.xlsx"
     PRIZES_FILE = "data/prizes.csv"
+    WISDOMS_FILE = "data/wisdoms.json"
 
     # Music Configuration
     YTDL_OPTS = {
@@ -54,20 +54,15 @@ class Config:
     }
 
     @classmethod
-    def validate_config(cls) -> List[str]:
-        """Validate configuration and return list of errors."""
-        errors = []
-
+    def validate_config(cls) -> None:
+        """Check required settings and create required directories."""
         if not cls.TOKEN:
-            errors.append(
+            raise SystemExit(
                 "Discord bot token (TOKEN) not found in environment variables"
             )
 
-        # Create required directories
         os.makedirs(cls.DATA_DIR, exist_ok=True)
         os.makedirs(cls.DOWNLOADS_DIR, exist_ok=True)
-
-        return errors
 
 
 # Create a global config instance

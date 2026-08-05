@@ -1,13 +1,14 @@
 services:
   ringobot:
-    build: .
+    image: jorgeygari/ringobot:latest
     container_name: ringobot
     restart: unless-stopped
-    
+
     # Environment variables
     environment:
       - PYTHONUNBUFFERED=1
-    
+      - TOKEN=${TOKEN}
+
     # Mount volumes for persistent data
     volumes:
       - ./data:/app/data

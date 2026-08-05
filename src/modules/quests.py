@@ -24,33 +24,21 @@ class QuestsModule:
     def __init__(self):
         """Initialize the quests module."""
         self.db_path = config.QUEST_DB_PATH
+        # ponytail: one shared connection. sqlite3 serializes access itself and
+        # every caller runs on the bot's event loop thread. Pool it if writes
+        # ever move off that thread and contend.
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")
         self._create_table()
-
-    def _create_connection(self) -> Optional[sqlite3.Connection]:
-        """Create a new database connection."""
-        try:
-            conn = sqlite3.connect(self.db_path, timeout=10.0)
-            conn.execute("PRAGMA busy_timeout=10000")  # 10 second timeout
-            return conn
-        except Exception as e:
-            logger.error(f"Error creating connection: {e}")
-            return None
 
     def _create_table(self) -> None:
         """Create the quests table if it doesn't exist."""
-        conn = self._create_connection()
-        if not conn:
-            return
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(self.CREATE_TABLE_QUESTS)
-            conn.commit()
+            with self.conn:
+                self.conn.execute(self.CREATE_TABLE_QUESTS)
             logger.info("Quests table created/verified")
         except sqlite3.Error as e:
             logger.error(f"Error creating table: {e}")
-        finally:
-            conn.close()
 
     def create_request(self, player: str) -> int:
         """
@@ -62,90 +50,52 @@ class QuestsModule:
         Returns:
             Quest ID if successful, -1 if player already has pending request
         """
-        conn = self._create_connection()
-        if not conn:
-            return -1
-
         try:
-            cursor = conn.cursor()
-
             # Check for existing pending request
             existing_sql = """SELECT * FROM quests WHERE player=? AND description IS NULL AND reward IS NULL"""
-            cursor.execute(existing_sql, (player,))
-            existing_record = cursor.fetchone()
-
-            if existing_record:
+            if self.conn.execute(existing_sql, (player,)).fetchone():
                 logger.info(f"Player {player} already has pending quest request")
                 return -1
 
             # Insert new request
             sql = """INSERT INTO quests(player, description, reward) VALUES(?,?,?)"""
-            cursor.execute(sql, (player, None, None))
-            conn.commit()
+            with self.conn:
+                quest_id = self.conn.execute(sql, (player, None, None)).lastrowid
 
-            quest_id = cursor.lastrowid
             logger.info(f"Created quest request {quest_id} for player {player}")
             return quest_id
 
         except sqlite3.Error as e:
             logger.error(f"Error creating quest request: {e}")
             return -1
-        finally:
-            conn.close()
 
     def get_users_with_pending_requests(self) -> List[str]:
         """Get list of users with pending quest requests."""
-        conn = self._create_connection()
-        if not conn:
-            return []
-
         try:
             sql = """SELECT player FROM quests WHERE description IS NULL AND reward IS NULL"""
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            rows = cursor.fetchall()
-            return [row[0] for row in rows]
+            return [row[0] for row in self.conn.execute(sql)]
         except sqlite3.Error as e:
             logger.error(f"Error getting pending requests: {e}")
             return []
-        finally:
-            conn.close()
 
     def get_user_request_id(self, player: str) -> Optional[int]:
         """Get the quest request ID for a player."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
             sql = """SELECT id FROM quests WHERE player=? AND description IS NULL AND reward IS NULL"""
-            cursor = conn.cursor()
-            cursor.execute(sql, (player,))
-            row = cursor.fetchone()
+            row = self.conn.execute(sql, (player,)).fetchone()
             return row[0] if row else None
         except sqlite3.Error as e:
             logger.error(f"Error getting user request ID: {e}")
             return None
-        finally:
-            conn.close()
 
     def get_user_active_quests(self, player: str) -> List[Tuple]:
         """Get active quests for a player."""
-        conn = self._create_connection()
-        if not conn:
-            return []
-
         try:
             sql = """SELECT * FROM quests WHERE player=? AND description IS NOT NULL AND reward IS NOT NULL"""
-            cursor = conn.cursor()
-            cursor.execute(sql, (player,))
-            rows = cursor.fetchall()
-            return rows
+            return self.conn.execute(sql, (player,)).fetchall()
         except sqlite3.Error as e:
             logger.error(f"Error getting active quests: {e}")
             return []
-        finally:
-            conn.close()
 
     def update_request(self, player: str, description: str, reward: str) -> bool:
         """
@@ -159,19 +109,14 @@ class QuestsModule:
         Returns:
             True if successful, False otherwise
         """
-        conn = self._create_connection()
-        if not conn:
-            return False
-
         try:
             request_id = self.get_user_request_id(player)
             if not request_id:
                 return False
 
             sql = """UPDATE quests SET description = ?, reward = ? WHERE id = ?"""
-            cursor = conn.cursor()
-            cursor.execute(sql, (description, reward, request_id))
-            conn.commit()
+            with self.conn:
+                self.conn.execute(sql, (description, reward, request_id))
 
             logger.info(f"Updated quest {request_id} for player {player}")
             return True
@@ -179,8 +124,6 @@ class QuestsModule:
         except sqlite3.Error as e:
             logger.error(f"Error updating quest request: {e}")
             return False
-        finally:
-            conn.close()
 
     async def handle_request_command(self, ctx):
         """Handle the quest request command."""
