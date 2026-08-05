@@ -111,7 +111,7 @@ class DiscapeModule:
             path = ws.cell(row=player_row + 1, column=self.CHAR_PATH_COL + 1).value
 
             return (room, path)
-        except (ValueError, Exception) as e:
+        except Exception as e:
             logger.error(f"Error getting player location: {e}")
             return (None, None)
 
@@ -128,7 +128,7 @@ class DiscapeModule:
             player_row = player_column_values.index(player)
 
             return ws.cell(row=player_row + 1, column=self.CHAR_HAND_COL + 1).value
-        except (ValueError, Exception) as e:
+        except Exception as e:
             logger.error(f"Error getting player hand: {e}")
             return None
 
@@ -228,7 +228,7 @@ class DiscapeModule:
 
             player_row = player_column_values.index(player) + 1
             return ws.cell(row=player_row, column=stat_col[stat]).value or 0
-        except (ValueError, Exception) as e:
+        except Exception as e:
             logger.error(f"Error getting stat: {e}")
             return 0
 
@@ -274,8 +274,8 @@ class DiscapeModule:
             logger.error(f"Error getting inventory names: {e}")
             return []
 
-    def add_item(self, new_data: List[str]) -> None:
-        """Add a new item to the inventory."""
+    def add_item(self, new_data: List[str], save: bool = True) -> None:
+        """Add a new item to the inventory, saving unless the caller batches."""
         if not self.wb:
             return
 
@@ -284,21 +284,9 @@ class DiscapeModule:
             new_row = ws.max_row + 1
             for i, value in enumerate(new_data):
                 ws.cell(row=new_row, column=i + 1, value=value)
-            with self.save_lock:
-                self.wb.save(config.DISCAPE_FILE)
-        except Exception as e:
-            logger.error(f"Error adding item: {e}")
-
-    def _add_item_no_save(self, new_data: List[str]) -> None:
-        """Add a new item to the inventory without saving."""
-        if not self.wb:
-            return
-
-        try:
-            ws = self.wb["Inventario"]
-            new_row = ws.max_row + 1
-            for i, value in enumerate(new_data):
-                ws.cell(row=new_row, column=i + 1, value=value)
+            if save:
+                with self.save_lock:
+                    self.wb.save(config.DISCAPE_FILE)
         except Exception as e:
             logger.error(f"Error adding item: {e}")
 
@@ -503,7 +491,7 @@ class DiscapeModule:
             ws = self.wb[room]
             for row in ws:
                 if row[0].value == item:  # name_col
-                    self._add_item_no_save([item, row[1].value, room])
+                    self.add_item([item, row[1].value, room], save=False)
                     ws.delete_rows(row[0].row)
                     with self.save_lock:
                         self.wb.save(config.DISCAPE_FILE)
