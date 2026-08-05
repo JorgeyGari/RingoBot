@@ -1,5 +1,5 @@
-# Use Python 3.12 slim image as base
-FROM python:3.12-slim
+# Use Python 3.13 slim image as base (matches .python-version and requires-python)
+FROM python:3.13-slim
 
 # Set working directory in container
 WORKDIR /app
@@ -10,11 +10,12 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker layer caching
-COPY requirements.txt .
+# Copy dependency manifest first to leverage Docker layer caching
+COPY pyproject.toml uv.lock ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -r pyproject.toml
 
 # Copy source code
 COPY src/ ./src/
