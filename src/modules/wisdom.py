@@ -2,11 +2,9 @@
 Wisdom module for handling wisdom quotes and user submissions.
 """
 
-import csv
 import json
 import logging
 import random
-import asyncio
 import unicodedata
 import re
 from pathlib import Path
@@ -78,56 +76,16 @@ class WisdomDeleteView(View):
 class WisdomModule:
     """Handles wisdom storage, retrieval, and user submissions."""
 
-    def __init__(self, csv_path: str):
+    def __init__(self, path: str):
         """Initialize the wisdom module and load existing wisdoms."""
-        self._path = Path(csv_path)
+        self._path = Path(path)
         self._wisdoms: List[Dict[str, str]] = []
-        self._load()
+        try:
+            if self._path.exists():
+                self._wisdoms = json.loads(self._path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error(f"Error loading wisdoms from {self._path}: {e}")
         logger.info(f"WisdomModule initialized with {len(self._wisdoms)} wisdoms")
-
-    def _load(self):
-        """Load wisdoms from JSON, with CSV fallback and auto-migration."""
-        if self._path.exists():
-            try:
-                self._load_json()
-            except (json.JSONDecodeError, Exception):
-                logger.info("JSON file not valid or doesn't exist, skipping")
-                self._wisdoms = []
-        else:
-            csv_path = self._path.parent / "wisdoms.csv"
-            if csv_path.exists():
-                logger.info("JSON not found, attempting CSV migration")
-                self._migrate_csv_to_json(csv_path)
-            else:
-                logger.info("No wisdoms file found, starting fresh")
-                self._wisdoms = []
-
-
-    def _migrate_csv_to_json(self, csv_path: Path):
-        """Migrate wisdoms from CSV to JSON format."""
-        try:
-            with open(csv_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                wisdoms = []
-                for row in reader:
-                    row.setdefault("last_shown", "")
-                    wisdoms.append(row)
-            self._wisdoms = wisdoms
-            self._save_json_sync()
-            logger.info(f"Migrated {len(wisdoms)} wisdoms from CSV to JSON")
-        except Exception as e:
-            logger.error(f"Error migrating CSV to JSON: {e}")
-            self._wisdoms = []
-
-    def _load_json(self):
-        """Load wisdoms from JSON file."""
-        try:
-            with open(self._path, "r", encoding="utf-8") as f:
-                self._wisdoms = json.load(f)
-            logger.info(f"Loaded {len(self._wisdoms)} wisdoms from JSON")
-        except Exception as e:
-            logger.error(f"Error loading wisdoms from JSON: {e}")
-            self._wisdoms = []
 
     def _save_json_sync(self):
         """Save wisdoms to JSON file synchronously."""
@@ -138,39 +96,8 @@ class WisdomModule:
             logger.error(f"Error saving wisdoms to JSON: {e}", exc_info=True)
             raise
 
-    def _calculate_probability(self, wisdom_text: str) -> float:
-        """Calculate the selection probability % for a wisdom based on recency weights."""
-        if not self._wisdoms:
-            return 0.0
-
-        weights = []
-        target_idx = None
-        for idx, wisdom in enumerate(self._wisdoms):
-            if wisdom["text"] == wisdom_text:
-                target_idx = idx
-            last_shown = wisdom.get("last_shown", "")
-            if not last_shown:
-                weight = 2_592_000  # 30 days in seconds
-            else:
-                try:
-                    last_shown_dt = datetime.fromisoformat(last_shown)
-                    seconds_since = (datetime.now() - last_shown_dt).total_seconds()
-                    weight = max(1, int(seconds_since) + 1)
-                except ValueError:
-                    weight = 2_592_000
-            weights.append(weight)
-
-        if target_idx is None:
-            return 0.0
-
-        total_weight = sum(weights)
-        return (weights[target_idx] / total_weight) * 100.0
-
-    async def get_random(self) -> Optional[str]:
-        """Get a weighted random wisdom, preferring ones not recently shown."""
-        if not self._wisdoms:
-            return None
-
+    def _weights(self) -> List[int]:
+        """Selection weight per wisdom: seconds since last shown, unseen ones favoured."""
         weights = []
         for wisdom in self._wisdoms:
             last_shown = wisdom.get("last_shown", "")
@@ -184,14 +111,37 @@ class WisdomModule:
                 except ValueError:
                     weight = 2_592_000
             weights.append(weight)
+        return weights
 
-        chosen = random.choices(self._wisdoms, weights=weights, k=1)[0]
+    def _calculate_probability(self, wisdom_text: str) -> float:
+        """Calculate the selection probability % for a wisdom based on recency weights."""
+        if not self._wisdoms:
+            return 0.0
+
+        # max() picks the last match, as the original loop did: add() appends
+        # first, so a duplicate text must resolve to the entry just added.
+        target_idx = max(
+            (i for i, w in enumerate(self._wisdoms) if w["text"] == wisdom_text),
+            default=None,
+        )
+        if target_idx is None:
+            return 0.0
+
+        weights = self._weights()
+        return (weights[target_idx] / sum(weights)) * 100.0
+
+    def get_random(self) -> Optional[str]:
+        """Get a weighted random wisdom, preferring ones not recently shown."""
+        if not self._wisdoms:
+            return None
+
+        chosen = random.choices(self._wisdoms, weights=self._weights(), k=1)[0]
         chosen["last_shown"] = datetime.now().isoformat()
         self._save_json_sync()
 
         return chosen["text"]
 
-    async def add(self, text: str, user: str) -> float:
+    def add(self, text: str, user: str) -> float:
         """Add a new wisdom and return its selection probability %."""
         wisdom_entry = {
             "text": text,
@@ -246,7 +196,7 @@ class WisdomModule:
             if sabiduría:
                 # User is submitting a new wisdom
                 user_name = ctx.user.name
-                probability = await self.add(sabiduría, user_name)
+                probability = self.add(sabiduría, user_name)
                 confirmation = (
                     f'Has registrado la sabiduría n.º {len(self._wisdoms)}:\n'
                     f'> {sabiduría}\n'
@@ -255,7 +205,7 @@ class WisdomModule:
                 await ctx.respond(confirmation, ephemeral=True)
             else:
                 # User is requesting a random wisdom
-                wisdom = await self.get_random()
+                wisdom = self.get_random()
                 if wisdom:
                     await ctx.respond(f'{wisdom}')
                 else:
@@ -273,7 +223,7 @@ class WisdomModule:
     async def handle_wisdom_message(self, message: discord.Message):
         """Handle the message trigger for wisdom queries."""
         try:
-            wisdom = await self.get_random()
+            wisdom = self.get_random()
             if wisdom:
                 await message.reply(f'{wisdom}', mention_author=False)
         except Exception as e:
