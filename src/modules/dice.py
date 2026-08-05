@@ -4,8 +4,7 @@ Dice rolling module for RPG dice functionality.
 
 import random
 import logging
-import discord
-from discord.ext import commands
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -24,29 +23,18 @@ class DiceModule:
         Returns:
             Error message if invalid, None if valid
         """
-        if "d" not in dice:
+        match = re.fullmatch(r"(\d+)d(\d+|f)", dice)
+        if not match:
             return "Necesito que me des los dados en un formato válido. Por ejemplo, `2d6`, `1d20` o `4df`."
 
-        try:
-            number_of_dice, dice_type = dice.split("d")
+        number, dice_type = int(match[1]), match[2]
 
-            # Validate dice type
-            if dice_type != "f":
-                if not dice_type.isnumeric():
-                    return "Necesito que me des los dados en un formato válido. Por ejemplo, `2d6`, `1d20` o `4df`."
-                if int(dice_type) < 2 or int(dice_type) > 9999:
-                    return "¿De dónde quieres que saque un dado así?"
-
-            # Validate number of dice
-            if not number_of_dice.isnumeric():
-                return "Necesito que me des los dados en un formato válido. Por ejemplo, `2d6`, `1d20` o `4df`."
-            if int(number_of_dice) < 1:
-                return "¿Entonces... no tiro ningún dado?"
-            if int(number_of_dice) > 100:
-                return "Oye, no tengo tantos dados."
-
-        except ValueError:
-            return "Necesito que me des los dados en un formato válido. Por ejemplo, `2d6`, `1d20` o `4df`."
+        if dice_type != "f" and not 2 <= int(dice_type) <= 9999:
+            return "¿De dónde quieres que saque un dado así?"
+        if number < 1:
+            return "¿Entonces... no tiro ningún dado?"
+        if number > 100:
+            return "Oye, no tengo tantos dados."
 
         return None
 
