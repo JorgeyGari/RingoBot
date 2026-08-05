@@ -197,22 +197,15 @@ class QuestsModule:
 
     def abandon_quest(self, quest_id: int, player: str) -> bool:
         """Allow a player to abandon/give up on an active quest."""
-        conn = self._create_connection()
-        if not conn:
-            return False
-
         try:
-            cursor = conn.cursor()
-
             # Verify the quest belongs to the player and is active
-            cursor.execute(
+            quest_data = self.conn.execute(
                 """
-                SELECT id, status FROM quests 
+                SELECT id, status FROM quests
                 WHERE id = ? AND player = ? AND description IS NOT NULL AND reward IS NOT NULL
             """,
                 (quest_id, player),
-            )
-            quest_data = cursor.fetchone()
+            ).fetchone()
 
             if not quest_data:
                 logger.warning(
@@ -228,22 +221,20 @@ class QuestsModule:
                 return False
 
             # Mark the quest as abandoned instead of deleting
-            cursor.execute(
-                """
-                UPDATE quests SET status = 'abandoned', completed_at = CURRENT_TIMESTAMP 
+            with self.conn:
+                cursor = self.conn.execute(
+                    """
+                UPDATE quests SET status = 'abandoned', completed_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """,
-                (quest_id,),
-            )
-            conn.commit()
+                    (quest_id,),
+                )
 
             logger.info(f"Quest {quest_id} abandoned by {player}")
             return cursor.rowcount > 0
         except sqlite3.Error as e:
             logger.error(f"Error abandoning quest: {e}")
             return False
-        finally:
-            conn.close()
 
     async def handle_quest_approval(self, bot, message_id: str, user_id: str) -> bool:
         """Handle quest approval by admin."""

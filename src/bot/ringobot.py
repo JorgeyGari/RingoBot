@@ -361,7 +361,7 @@ class RingoBot:
         @discord.option(
             "misión",
             description="Misión que quieres abandonar.",
-            autocomplete=discord.utils.basic_autocomplete(self._get_quest_options),
+            autocomplete=discord.utils.basic_autocomplete(misiones),
             required=True,
         )
         async def abandonar(ctx: discord.ApplicationContext, misión: str):
