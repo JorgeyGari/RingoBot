@@ -204,38 +204,23 @@ class CombatModule:
         self.active_combats: Dict[int, CombatSession] = (
             {}
         )  # Channel ID -> Combat Session
+        # ponytail: one shared connection, same as CharactersModule/QuestsModule.
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")
         self._create_tables()
         self._populate_initial_data()
 
-    def _create_connection(self) -> Optional[sqlite3.Connection]:
-        """Create a new database connection."""
-        try:
-            conn = sqlite3.connect(self.db_path, timeout=10.0)
-            conn.execute("PRAGMA busy_timeout=10000")
-            return conn
-        except Exception as e:
-            logger.error(f"Error creating connection: {e}")
-            return None
-
     def _create_tables(self) -> None:
         """Create the required tables."""
-        conn = self._create_connection()
-        if not conn:
-            logger.error("Failed to create connection for table creation")
-            return
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(self.CREATE_TABLE_COMBAT_STATS)
-            cursor.execute(self.CREATE_TABLE_ENEMIES)
-            cursor.execute(self.CREATE_TABLE_TECHNIQUES)
-            cursor.execute(self.CREATE_TABLE_EQUIPMENT)
-            conn.commit()
+            with self.conn:
+                self.conn.execute(self.CREATE_TABLE_COMBAT_STATS)
+                self.conn.execute(self.CREATE_TABLE_ENEMIES)
+                self.conn.execute(self.CREATE_TABLE_TECHNIQUES)
+                self.conn.execute(self.CREATE_TABLE_EQUIPMENT)
             logger.info("Combat tables created/verified successfully")
         except Exception as e:
             logger.error(f"Error creating combat tables: {e}")
-        finally:
-            conn.close()
 
     def _populate_initial_data(self) -> None:
         """Populate initial techniques and equipment data."""
@@ -255,14 +240,8 @@ class CombatModule:
             )
             return
 
-        conn = self._create_connection()
-        if not conn:
-            return
-
         try:
-            cursor = conn.cursor()
-
-            with open(techniques_file, "r", encoding="utf-8") as file:
+            with open(techniques_file, "r", encoding="utf-8") as file, self.conn:
                 csv_reader = csv.DictReader(file)
 
                 for row in csv_reader:
@@ -276,9 +255,9 @@ class CombatModule:
                         else None
                     )
 
-                    cursor.execute(
+                    self.conn.execute(
                         """
-                        INSERT OR IGNORE INTO techniques 
+                        INSERT OR IGNORE INTO techniques
                         (name, description, associated_stat, effect_type, effect_value, cost, target, status_effect, character_specific)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
@@ -295,19 +274,12 @@ class CombatModule:
                         ),
                     )
 
-            conn.commit()
             logger.info("Techniques loaded from CSV file")
         except Exception as e:
             logger.error(f"Error loading techniques from CSV: {e}")
-        finally:
-            conn.close()
 
     def _populate_initial_equipment(self) -> None:
         """Parse prizes.csv and populate equipment data."""
-        conn = self._create_connection()
-        if not conn:
-            return
-
         try:
             # Parse equipment from existing prizes.csv
             equipment_items = [
@@ -393,42 +365,32 @@ class CombatModule:
                 ),
             ]
 
-            cursor = conn.cursor()
-            for equipment in equipment_items:
-                cursor.execute(
+            with self.conn:
+                self.conn.executemany(
                     """
-                    INSERT OR REPLACE INTO equipment 
+                    INSERT OR REPLACE INTO equipment
                     (name, equipment_type, fuerza_bonus, aguante_bonus, agilidad_bonus, encanto_bonus, conocimiento_bonus, hp_bonus, description)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                    equipment,
+                    equipment_items,
                 )
-            conn.commit()
             logger.info("Initial equipment populated")
         except Exception as e:
             logger.error(f"Error populating initial equipment: {e}")
-        finally:
-            conn.close()
 
     # Character combat stats management
     def get_character_combat_stats(self, discord_id: str) -> Optional[CombatStats]:
         """Get character's combat stats."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            result = self.conn.execute(
                 """
-                SELECT discord_id, fuerza_modifier, aguante_modifier, agilidad_modifier, 
+                SELECT discord_id, fuerza_modifier, aguante_modifier, agilidad_modifier,
                        encanto_modifier, conocimiento_modifier, max_hp, equipped_weapon, equipped_armor
                 FROM combat_stats WHERE discord_id = ?
             """,
                 (discord_id,),
-            )
+            ).fetchone()
 
-            result = cursor.fetchone()
             if result:
                 return CombatStats(
                     discord_id=result[0],
@@ -448,24 +410,17 @@ class CombatModule:
         except Exception as e:
             logger.error(f"Error getting combat stats: {e}")
             return None
-        finally:
-            conn.close()
 
     def _create_default_combat_stats(self, discord_id: str) -> CombatStats:
         """Create default combat stats for a character."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO combat_stats (discord_id) VALUES (?)
-            """,
-                (discord_id,),
-            )
-            conn.commit()
+            with self.conn:
+                self.conn.execute(
+                    """
+                    INSERT OR IGNORE INTO combat_stats (discord_id) VALUES (?)
+                """,
+                    (discord_id,),
+                )
             logger.info(f"Created default combat stats for {discord_id}")
 
             return CombatStats(
@@ -481,15 +436,9 @@ class CombatModule:
         except Exception as e:
             logger.error(f"Error creating default combat stats: {e}")
             return None
-        finally:
-            conn.close()
 
     def update_combat_stats(self, discord_id: str, **stats) -> bool:
         """Update character's combat stats."""
-        conn = self._create_connection()
-        if not conn:
-            return False
-
         try:
             # Build dynamic query
             valid_stats = [
@@ -517,36 +466,27 @@ class CombatModule:
             params.append(discord_id)
             query = f"UPDATE combat_stats SET {', '.join(updates)} WHERE discord_id = ?"
 
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            conn.commit()
+            with self.conn:
+                cursor = self.conn.execute(query, params)
 
             return cursor.rowcount > 0
         except Exception as e:
             logger.error(f"Error updating combat stats: {e}")
             return False
-        finally:
-            conn.close()
 
     # Equipment management
     def get_equipment(self, equipment_name: str) -> Optional[Equipment]:
         """Get equipment details."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            result = self.conn.execute(
                 """
                 SELECT name, equipment_type, fuerza_bonus, aguante_bonus, agilidad_bonus,
                        encanto_bonus, conocimiento_bonus, hp_bonus, description
                 FROM equipment WHERE name = ?
             """,
                 (equipment_name,),
-            )
+            ).fetchone()
 
-            result = cursor.fetchone()
             if result:
                 return Equipment(
                     name=result[0],
@@ -563,8 +503,6 @@ class CombatModule:
         except Exception as e:
             logger.error(f"Error getting equipment: {e}")
             return None
-        finally:
-            conn.close()
 
     def get_equipment_bonuses(self, discord_id: str) -> Dict[str, int]:
         """Get total equipment bonuses for a character."""
@@ -618,63 +556,49 @@ class CombatModule:
         created_by: str = "",
     ) -> Optional[int]:
         """Create a new enemy."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
-            cursor = conn.cursor()
             techniques_json = json.dumps(techniques or [])
 
-            cursor.execute(
-                """
-                INSERT INTO enemies 
-                (name, description, max_hp, fuerza_modifier, aguante_modifier, agilidad_modifier,
-                 encanto_modifier, conocimiento_modifier, techniques, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    name,
-                    description,
-                    max_hp,
-                    fuerza,
-                    aguante,
-                    agilidad,
-                    encanto,
-                    conocimiento,
-                    techniques_json,
-                    created_by,
-                ),
-            )
+            with self.conn:
+                enemy_id = self.conn.execute(
+                    """
+                    INSERT INTO enemies
+                    (name, description, max_hp, fuerza_modifier, aguante_modifier, agilidad_modifier,
+                     encanto_modifier, conocimiento_modifier, techniques, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        name,
+                        description,
+                        max_hp,
+                        fuerza,
+                        aguante,
+                        agilidad,
+                        encanto,
+                        conocimiento,
+                        techniques_json,
+                        created_by,
+                    ),
+                ).lastrowid
 
-            conn.commit()
-            enemy_id = cursor.lastrowid
             logger.info(f"Enemy '{name}' created with ID {enemy_id}")
             return enemy_id
         except Exception as e:
             logger.error(f"Error creating enemy: {e}")
             return None
-        finally:
-            conn.close()
 
     def get_enemy(self, enemy_id: int) -> Optional[Enemy]:
         """Get enemy by ID."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            result = self.conn.execute(
                 """
                 SELECT id, name, description, max_hp, fuerza_modifier, aguante_modifier,
                        agilidad_modifier, encanto_modifier, conocimiento_modifier, techniques, special_abilities
                 FROM enemies WHERE id = ?
             """,
                 (enemy_id,),
-            )
+            ).fetchone()
 
-            result = cursor.fetchone()
             if result:
                 techniques = json.loads(result[9]) if result[9] else []
                 special_abilities = json.loads(result[10]) if result[10] else []
@@ -697,30 +621,23 @@ class CombatModule:
         except Exception as e:
             logger.error(f"Error getting enemy: {e}")
             return None
-        finally:
-            conn.close()
 
     # Technique management
     def get_available_techniques(self, discord_id: str) -> List[Technique]:
         """Get techniques available to a character."""
-        conn = self._create_connection()
-        if not conn:
-            return []
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            rows = self.conn.execute(
                 """
                 SELECT id, name, description, associated_stat, effect_type, effect_value,
                        cost, target, status_effect, character_specific
-                FROM techniques 
+                FROM techniques
                 WHERE character_specific IS NULL OR character_specific = ?
             """,
                 (discord_id,),
-            )
+            ).fetchall()
 
             techniques = []
-            for row in cursor.fetchall():
+            for row in rows:
                 techniques.append(
                     Technique(
                         id=row[0],
@@ -740,27 +657,19 @@ class CombatModule:
         except Exception as e:
             logger.error(f"Error getting available techniques: {e}")
             return []
-        finally:
-            conn.close()
 
     def get_technique(self, technique_id: int) -> Optional[Technique]:
         """Get technique by ID."""
-        conn = self._create_connection()
-        if not conn:
-            return None
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            result = self.conn.execute(
                 """
                 SELECT id, name, description, associated_stat, effect_type, effect_value,
                        cost, target, status_effect, character_specific
                 FROM techniques WHERE id = ?
             """,
                 (technique_id,),
-            )
+            ).fetchone()
 
-            result = cursor.fetchone()
             if result:
                 return Technique(
                     id=result[0],
@@ -778,8 +687,6 @@ class CombatModule:
         except Exception as e:
             logger.error(f"Error getting technique: {e}")
             return None
-        finally:
-            conn.close()
 
     # Combat mechanics
     def start_combat(
@@ -1226,35 +1133,22 @@ class CombatModule:
     # Admin commands
     def list_enemies(self) -> List[Tuple]:
         """List all enemies."""
-        conn = self._create_connection()
-        if not conn:
-            return []
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            return self.conn.execute(
                 "SELECT id, name, description, max_hp FROM enemies ORDER BY name"
-            )
-            return cursor.fetchall()
+            ).fetchall()
         except Exception as e:
             logger.error(f"Error listing enemies: {e}")
             return []
-        finally:
-            conn.close()
 
     def delete_enemy(self, enemy_id: int) -> bool:
         """Delete an enemy."""
-        conn = self._create_connection()
-        if not conn:
-            return False
-
         try:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM enemies WHERE id = ?", (enemy_id,))
-            conn.commit()
+            with self.conn:
+                cursor = self.conn.execute(
+                    "DELETE FROM enemies WHERE id = ?", (enemy_id,)
+                )
             return cursor.rowcount > 0
         except Exception as e:
             logger.error(f"Error deleting enemy: {e}")
             return False
-        finally:
-            conn.close()
