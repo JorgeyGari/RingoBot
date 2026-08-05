@@ -77,6 +77,9 @@ class GachaModule:
     def __init__(self):
         """Initialize the gacha module."""
         self.db_path = config.CHARACTER_DB_PATH  # Use same DB as characters
+        # ponytail: one shared connection, same as CharactersModule/QuestsModule.
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")
         self.prizes: List[Prize] = []
         self.prizes_by_rarity: Dict[int, List[Prize]] = {1: [], 2: [], 3: []}
         self.special_prizes: Dict[str, List[Prize]] = (
@@ -85,33 +88,15 @@ class GachaModule:
         self._create_tables()
         self._load_prizes()
 
-    def _create_connection(self) -> Optional[sqlite3.Connection]:
-        """Create a new database connection."""
-        try:
-            conn = sqlite3.connect(self.db_path, timeout=10.0)
-            conn.execute("PRAGMA busy_timeout=10000")
-            return conn
-        except Exception as e:
-            logger.error(f"Error creating connection: {e}")
-            return None
-
     def _create_tables(self) -> None:
         """Create the required tables."""
-        conn = self._create_connection()
-        if not conn:
-            logger.error("Failed to create connection for table creation")
-            return
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(self.CREATE_TABLE_INVENTORY)
-            cursor.execute(self.CREATE_TABLE_ROLL_HISTORY)
-            conn.commit()
+            with self.conn:
+                self.conn.execute(self.CREATE_TABLE_INVENTORY)
+                self.conn.execute(self.CREATE_TABLE_ROLL_HISTORY)
             logger.info("Gacha tables created/verified successfully")
         except Exception as e:
             logger.error(f"Error creating tables: {e}")
-        finally:
-            conn.close()
 
     def _load_prizes(self) -> None:
         """Load prizes from CSV file."""
@@ -267,137 +252,103 @@ class GachaModule:
 
     def add_items_to_inventory(self, discord_id: str, prizes: List[Prize]) -> bool:
         """Add items to user's inventory."""
-        conn = self._create_connection()
-        if not conn:
-            return False
-
         try:
-            cursor = conn.cursor()
-
-            for prize in prizes:
-                # Check if item already exists in inventory
-                cursor.execute(
-                    """
-                    SELECT quantity FROM user_inventory 
-                    WHERE discord_id = ? AND item_name = ?
-                    """,
-                    (discord_id, prize.name),
-                )
-
-                result = cursor.fetchone()
-
-                if result:
-                    # Update existing item quantity
-                    new_quantity = result[0] + 1
-                    cursor.execute(
+            # One transaction for the whole roll: a partial inventory grant is
+            # worse than none, since the points were already spent.
+            with self.conn:
+                for prize in prizes:
+                    # Check if item already exists in inventory
+                    result = self.conn.execute(
                         """
-                        UPDATE user_inventory 
-                        SET quantity = ?, obtained_date = CURRENT_TIMESTAMP
+                        SELECT quantity FROM user_inventory
                         WHERE discord_id = ? AND item_name = ?
                         """,
-                        (new_quantity, discord_id, prize.name),
-                    )
-                else:
-                    # Add new item
-                    cursor.execute(
-                        """
-                        INSERT INTO user_inventory (discord_id, item_name, quantity)
-                        VALUES (?, ?, 1)
-                        """,
                         (discord_id, prize.name),
-                    )
+                    ).fetchone()
 
-            conn.commit()
+                    if result:
+                        # Update existing item quantity
+                        self.conn.execute(
+                            """
+                            UPDATE user_inventory
+                            SET quantity = ?, obtained_date = CURRENT_TIMESTAMP
+                            WHERE discord_id = ? AND item_name = ?
+                            """,
+                            (result[0] + 1, discord_id, prize.name),
+                        )
+                    else:
+                        # Add new item
+                        self.conn.execute(
+                            """
+                            INSERT INTO user_inventory (discord_id, item_name, quantity)
+                            VALUES (?, ?, 1)
+                            """,
+                            (discord_id, prize.name),
+                        )
+
             logger.info(f"Added {len(prizes)} items to {discord_id}'s inventory")
             return True
 
         except Exception as e:
             logger.error(f"Error adding items to inventory: {e}")
-            conn.rollback()
             return False
-        finally:
-            conn.close()
 
     def record_roll_history(self, discord_id: str, roll_result: RollResult) -> bool:
         """Record roll in history."""
-        conn = self._create_connection()
-        if not conn:
-            return False
-
         try:
-            cursor = conn.cursor()
-
             # Create items list string
             items_str = ", ".join([prize.name for prize in roll_result.prizes])
 
-            cursor.execute(
-                """
-                INSERT INTO roll_history (discord_id, roll_type, cost, items_obtained)
-                VALUES (?, ?, ?, ?)
-                """,
-                (discord_id, roll_result.roll_type, roll_result.cost, items_str),
-            )
+            with self.conn:
+                self.conn.execute(
+                    """
+                    INSERT INTO roll_history (discord_id, roll_type, cost, items_obtained)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (discord_id, roll_result.roll_type, roll_result.cost, items_str),
+                )
 
-            conn.commit()
             logger.info(f"Recorded roll history for {discord_id}")
             return True
 
         except Exception as e:
             logger.error(f"Error recording roll history: {e}")
             return False
-        finally:
-            conn.close()
 
     def get_user_inventory(self, discord_id: str) -> List[Tuple]:
         """Get user's inventory."""
-        conn = self._create_connection()
-        if not conn:
-            return []
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            return self.conn.execute(
                 """
                 SELECT item_name, quantity, obtained_date
-                FROM user_inventory 
+                FROM user_inventory
                 WHERE discord_id = ?
                 ORDER BY obtained_date DESC
                 """,
                 (discord_id,),
-            )
-            return cursor.fetchall()
+            ).fetchall()
 
         except Exception as e:
             logger.error(f"Error getting user inventory: {e}")
             return []
-        finally:
-            conn.close()
 
     def get_roll_history(self, discord_id: str, limit: int = 10) -> List[Tuple]:
         """Get user's roll history."""
-        conn = self._create_connection()
-        if not conn:
-            return []
-
         try:
-            cursor = conn.cursor()
-            cursor.execute(
+            return self.conn.execute(
                 """
                 SELECT roll_type, cost, items_obtained, timestamp
-                FROM roll_history 
+                FROM roll_history
                 WHERE discord_id = ?
                 ORDER BY timestamp DESC
                 LIMIT ?
                 """,
                 (discord_id, limit),
-            )
-            return cursor.fetchall()
+            ).fetchall()
 
         except Exception as e:
             logger.error(f"Error getting roll history: {e}")
             return []
-        finally:
-            conn.close()
 
     def get_prize_info(self, item_name: str) -> Optional[Prize]:
         """Get information about a specific prize."""
