@@ -461,12 +461,19 @@ class CombatModule:
                     params.append(value)
 
             if not updates:
-                return True
+                logger.warning(f"No valid stats to update for {discord_id}: {list(stats)}")
+                return False
 
             params.append(discord_id)
             query = f"UPDATE combat_stats SET {', '.join(updates)} WHERE discord_id = ?"
 
             with self.conn:
+                # Characters that never fought have no row yet, and UPDATE would
+                # silently match nothing.
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO combat_stats (discord_id) VALUES (?)",
+                    (discord_id,),
+                )
                 cursor = self.conn.execute(query, params)
 
             return cursor.rowcount > 0

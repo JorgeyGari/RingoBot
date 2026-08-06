@@ -1097,7 +1097,8 @@ class RingoBot:
                 return
 
             # Update stats
-            update_data = {f"{stat}_modifier": valor}
+            # max_hp is a column of its own; the five attributes are stored as modifiers.
+            update_data = {stat if stat == "max_hp" else f"{stat}_modifier": valor}
             success = self.combat_module.update_combat_stats(str(usuario.id), **update_data)
             
             if success:
