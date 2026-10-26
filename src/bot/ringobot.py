@@ -12,6 +12,7 @@ from modules.music import MusicModule
 from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
 from modules.wisdom import WisdomModule, _normalize, _WISDOM_TRIGGER
+from modules.niter import NiterModule
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class RingoBot:
         self.discape_module = DiscapeModule()
         self.quests_module = QuestsModule()
         self.wisdom_module = WisdomModule(config.WISDOMS_FILE)
+        self.niter_module = NiterModule()
 
         # Register event handlers
         self._register_events()
@@ -153,6 +155,17 @@ class RingoBot:
         async def ytmusic(ctx: discord.ApplicationContext, link: str):
             """Reproduce música de YouTube en tu canal de voz."""
             await self.music_module.play_youtube_music(ctx, self.bot, link)
+
+        @self.bot.slash_command(name="nitercurro", description="¿Cuándo curra Niter?")
+        @discord.option(
+            "cuando",
+            description='Día a consultar: "mañana", "el jueves", "27/10"… Por defecto, hoy.',
+            required=False,
+            default=None,
+        )
+        async def nitercurro(ctx: discord.ApplicationContext, cuando: str):
+            """¿Cuándo curra Niter?"""
+            await self.niter_module.handle_nitercurro_command(ctx, cuando)
 
         # Wisdom command group
         sabiduria = self.bot.create_group("sabiduria", "Comandos para gestionar la sabiduría")

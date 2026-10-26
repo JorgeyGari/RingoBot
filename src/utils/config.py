@@ -27,6 +27,11 @@ class Config:
     QUEST_CHANNEL_ID_DICT = {"jorgeygari": 1059245948590633123}
     COMPLETED_QUESTS_CHANNEL_ID = 1276207418128207922
 
+    # Niter schedule
+    NITER_SCHEDULE_CHANNEL_ID = 948015933434253375
+    NITER_SCHEDULE_MESSAGE_ID = 1537136810373939302
+    TIMEZONE = "Europe/Madrid"
+
     # Database Configuration
     QUEST_DB_PATH = "data/quests.db"
 
