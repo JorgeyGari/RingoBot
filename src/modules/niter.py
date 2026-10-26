@@ -38,6 +38,7 @@ _LINE_RE = re.compile(
     r"(?:\s*(?:al|a|-|–|hasta)\s*(?P<d2>\d{1,2})(?:[/.](?P<m2>\d{1,2}))?)?"
     r"\s*[:=\-–>]*\s*(?P<code>[a-z]+|-)\s*\.?$"
 )
+_HEADER_RE = re.compile(r"^(?P<mes>[a-z]+)(?:\s+(?:de\s+)?(?P<year>\d{4}))?\s*:?$")
 _DECOR_RE = re.compile(r"[*_~`>]")
 _BULLET_RE = re.compile(r"^[\s\-•]+")
 
@@ -85,11 +86,18 @@ def _closest(day: int, anchor: date, month: int | None = None) -> date | None:
 def parse_schedule(text: str, anchor: date) -> Schedule | None:
     days: dict[date, str | None] = {}
     prev_end: date | None = None
+    header_month: int | None = None  # set by a "Octubre" / "Octubre 2026" line
+    header_year: int | None = None
 
     for raw in text.splitlines():
         line = _DECOR_RE.sub("", raw)
         line = _BULLET_RE.sub("", line)
         line = _normalize(line.strip()).strip()
+        h = _HEADER_RE.match(line)
+        if h and h["mes"] in MONTHS:
+            header_month = MONTHS[h["mes"]]
+            header_year = int(h["year"]) if h["year"] else None
+            continue
         m = _LINE_RE.match(line)
         if not m:
             continue
@@ -108,6 +116,11 @@ def parse_schedule(text: str, anchor: date) -> Schedule | None:
 
         if m1 is not None:
             start = _closest(d1, anchor, m1)
+        elif header_month is not None:
+            if header_year is not None:
+                start = _safe_date(header_year, header_month, d1)
+            else:
+                start = _closest(d1, anchor, header_month)
         elif prev_end is None:
             start = _closest(d1, anchor)
         else:
