@@ -242,6 +242,9 @@ class NiterModule:
             )
             return
 
+        # Fetching the message can exceed Discord's 3s interaction deadline.
+        await ctx.defer()
+
         try:
             channel = ctx.bot.get_channel(
                 config.NITER_SCHEDULE_CHANNEL_ID
