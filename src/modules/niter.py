@@ -156,7 +156,9 @@ def parse_schedule(text: str, anchor: date) -> Schedule | None:
     if not days:
         return None
     first, last = min(days), max(days)
-    start = first.replace(day=1)
+    # The message is hand-edited on `anchor`; days before its first entry are
+    # known (off), so coverage starts no later than the edit date.
+    start = min(first.replace(day=1), anchor)
     end = last.replace(day=calendar.monthrange(last.year, last.month)[1])
     return Schedule(days=days, start=start, end=end, updated=anchor)
 
