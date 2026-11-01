@@ -57,14 +57,6 @@ class EventsModule:
             )
             return
 
-        user = ctx.interaction.user
-        if user.id != event.creator_id and not ctx.interaction.permissions.manage_guild:
-            await ctx.respond(
-                "Solo quien creó el evento o un admin puede mencionar a l@s interesad@s.",
-                ephemeral=True,
-            )
-            return
-
         await ctx.defer()
         try:
             members = await event.subscribers(limit=None, as_member=True).flatten()
