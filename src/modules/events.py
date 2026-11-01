@@ -4,6 +4,8 @@ import logging
 
 import discord
 
+from utils.parse import to_int
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,7 +76,7 @@ class EventsModule:
             )
             return
 
-        header = f"🔔 **{event.name}** — <t:{int(event.start_time.timestamp())}:f>"
+        header = f"🔔 **{event.name}** — <t:{to_int(event.start_time.timestamp())}:f>"
         if mensaje:
             header += f"\n{mensaje}"
         header += "\n"

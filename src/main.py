@@ -12,7 +12,10 @@ from bot.ringobot import RingoBot
 
 def main():
     """Main entry point for RingoBot."""
-    os.makedirs("logs", exist_ok=True)
+    try:
+        os.makedirs("logs", exist_ok=True)
+    except OSError as e:
+        raise SystemExit(f"No se pudo crear el directorio de logs: {e}") from e
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

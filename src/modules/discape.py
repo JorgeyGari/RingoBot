@@ -10,6 +10,7 @@ import discord
 from openpyxl import load_workbook
 
 from utils.config import config
+from utils.parse import to_int
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +18,6 @@ logger = logging.getLogger(__name__)
 def _text(value: object) -> str:
     """Coerce an openpyxl cell value to str (cells can hold numbers/dates)."""
     return "" if value is None else str(value)
-
-
-def _number(value: object) -> int:
-    """Coerce an openpyxl cell value to int, defaulting to 0."""
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, (int, float)):
-        return int(value)
-    try:
-        return int(str(value))
-    except ValueError:
-        return 0
 
 
 class PaginationView(discord.ui.View):
@@ -247,7 +236,7 @@ class DiscapeModule:
                 return 0
 
             player_row = player_column_values.index(player) + 1
-            return _number(ws.cell(row=player_row, column=stat_col[stat]).value)
+            return to_int(ws.cell(row=player_row, column=stat_col[stat]).value)
         except Exception as e:
             logger.error(f"Error getting stat: {e}")
             return 0

@@ -68,8 +68,11 @@ class Config:
                 "Discord bot token (TOKEN) not found in environment variables"
             )
 
-        os.makedirs(cls.DATA_DIR, exist_ok=True)
-        os.makedirs(cls.DOWNLOADS_DIR, exist_ok=True)
+        try:
+            for path in (cls.DATA_DIR, cls.DOWNLOADS_DIR):
+                os.makedirs(path, exist_ok=True)
+        except OSError as e:
+            raise SystemExit(f"No se pudieron crear los directorios de datos: {e}") from e
 
 
 # Create a global config instance

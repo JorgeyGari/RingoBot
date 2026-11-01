@@ -21,7 +21,10 @@ class MusicModule:
     def __init__(self):
         """Initialize the music module."""
         # Ensure downloads directory exists
-        os.makedirs(config.DOWNLOADS_DIR, exist_ok=True)
+        try:
+            os.makedirs(config.DOWNLOADS_DIR, exist_ok=True)
+        except OSError as e:
+            logger.error(f"No se pudo crear el directorio de descargas: {e}")
 
         # Check for FFmpeg availability
         self.ffmpeg_path = shutil.which("ffmpeg")

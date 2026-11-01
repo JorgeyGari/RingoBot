@@ -6,6 +6,8 @@ import logging
 import random
 import re
 
+from utils.parse import to_int
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,9 +28,9 @@ class DiceModule:
         if not match:
             return "Necesito que me des los dados en un formato válido. Por ejemplo, `2d6`, `1d20` o `4df`."
 
-        number, dice_type = int(match[1]), match[2]
+        number, dice_type = to_int(match[1]), match[2]
 
-        if dice_type != "f" and not 2 <= int(dice_type) <= 9999:
+        if dice_type != "f" and not 2 <= to_int(dice_type) <= 9999:
             return "¿De dónde quieres que saque un dado así?"
         if number < 1:
             return "¿Entonces... no tiro ningún dado?"
@@ -48,7 +50,7 @@ class DiceModule:
             Human-readable string
         """
         number_of_dice, dice_type = dice.split("d")
-        number = int(number_of_dice)
+        number = to_int(number_of_dice)
 
         number_text = "un" if number == 1 else str(number)
         dice_type_text = "fate" if dice_type == "f" else f"{dice_type} caras"
@@ -69,14 +71,14 @@ class DiceModule:
             List of dice results
         """
         number_of_dice, dice_type = dice.split("d")
-        number = int(number_of_dice)
+        number = to_int(number_of_dice)
 
         if dice_type == "f":
             # Fate dice: -, ·, +
             fate_dice = ["-", "·", "+"]
             return [random.choice(fate_dice) for _ in range(number)]
 
-        sides = int(dice_type)
+        sides = to_int(dice_type)
         return [random.randint(1, sides) for _ in range(number)]
 
     def calculate_total(self, roll: list) -> int:
@@ -92,7 +94,7 @@ class DiceModule:
         fate_values = {"-": -1, "·": 0, "+": 1}
         total = 0
         for die in roll:
-            total += fate_values[die] if die in fate_values else int(die)
+            total += fate_values[die] if die in fate_values else to_int(die)
         return total
 
     async def handle_roll_command(self, ctx, dados: str, modificador: int):

@@ -11,6 +11,7 @@ import discord
 
 from modules.wisdom import _normalize
 from utils.config import config
+from utils.parse import to_int
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def parse_schedule(text: str, anchor: date) -> Schedule | None:
         h = _HEADER_RE.match(line)
         if h and h["mes"] in MONTHS:
             header_month = MONTHS[h["mes"]]
-            header_year = int(h["year"]) if h["year"] else None
+            header_year = to_int(h["year"]) if h["year"] else None
             continue
         m = _LINE_RE.match(line)
         if not m:
@@ -110,9 +111,9 @@ def parse_schedule(text: str, anchor: date) -> Schedule | None:
             logger.warning("Unrecognised shift line: %r", raw)
             continue
 
-        d1, d2 = int(m["d1"]), int(m["d2"]) if m["d2"] else None
-        m1 = int(m["m1"]) if m["m1"] else None
-        m2 = int(m["m2"]) if m["m2"] else None
+        d1, d2 = to_int(m["d1"]), to_int(m["d2"]) if m["d2"] else None
+        m1 = to_int(m["m1"]) if m["m1"] else None
+        m2 = to_int(m["m2"]) if m["m2"] else None
 
         if m1 is not None:
             start = _closest(d1, anchor, m1)
@@ -185,24 +186,24 @@ def parse_target(arg: str | None, today: date) -> date | None:
 
     m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
     if m:
-        return _safe_date(int(m[1]), int(m[2]), int(m[3]))
+        return _safe_date(to_int(m[1]), to_int(m[2]), to_int(m[3]))
 
     m = re.fullmatch(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})", s)
     if m:
-        y = int(m[3])
+        y = to_int(m[3])
         if y < 100:
             y += 2000
-        return _safe_date(y, int(m[2]), int(m[1]))
+        return _safe_date(y, to_int(m[2]), to_int(m[1]))
 
     month = None
     d = None
     m = re.fullmatch(r"(\d{1,2})[/-](\d{1,2})", s)
     if m:
-        d, month = int(m[1]), int(m[2])
+        d, month = to_int(m[1]), to_int(m[2])
     else:
         m = re.fullmatch(r"(\d{1,2})\s+de\s+([a-z]+)", s)
         if m and m[2] in MONTHS:
-            d, month = int(m[1]), MONTHS[m[2]]
+            d, month = to_int(m[1]), MONTHS[m[2]]
     if month is not None and d is not None:
         r = _safe_date(today.year, month, d)
         if r is None:
@@ -213,7 +214,7 @@ def parse_target(arg: str | None, today: date) -> date | None:
 
     m = re.fullmatch(r"(?:dia\s+)?(\d{1,2})", s)
     if m:
-        d = int(m[1])
+        d = to_int(m[1])
         if d >= today.day:
             return _safe_date(today.year, today.month, d)
         y, mo = _add_months(today.year, today.month, 1)
