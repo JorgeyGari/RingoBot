@@ -13,6 +13,7 @@ from modules.discape import DiscapeModule
 from modules.quests import QuestsModule
 from modules.wisdom import WisdomModule, _normalize, _WISDOM_TRIGGER
 from modules.niter import NiterModule
+from modules.events import EventsModule
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class RingoBot:
         self.quests_module = QuestsModule()
         self.wisdom_module = WisdomModule(config.WISDOMS_FILE)
         self.niter_module = NiterModule()
+        self.events_module = EventsModule()
 
         # Register event handlers
         self._register_events()
@@ -127,6 +129,7 @@ class RingoBot:
             ctx.interaction.user.name
         )
         solicitantes = lambda ctx: self.quests_module.get_users_with_pending_requests()
+        eventos = lambda ctx: self.events_module.get_event_options(ctx.guild)
 
         # Dice rolling command
         @self.bot.slash_command()
@@ -314,6 +317,33 @@ class RingoBot:
         async def completar(ctx: discord.ApplicationContext, misión: str):
             """Completa una misión."""
             await self.quests_module.handle_complete_command(ctx, misión)
+
+        # Scheduled events command group
+        event_group = self.bot.create_group(
+            "eventos", "Eventos programados del servidor"
+        )
+
+        @event_group.command(
+            name="listar",
+            description="Muestra los eventos programados y cuánta gente está interesada.",
+        )
+        async def eventos_listar(ctx: discord.ApplicationContext):
+            """Lista los eventos programados."""
+            await self.events_module.handle_list_command(ctx)
+
+        @event_group.command(
+            name="mencionar",
+            description="Menciona a todos los interesados en un evento.",
+        )
+        @discord.option(
+            "evento",
+            description="Evento del servidor.",
+            autocomplete=discord.utils.basic_autocomplete(eventos),
+            required=True,
+        )
+        async def eventos_mencionar(ctx: discord.ApplicationContext, evento: str):
+            """Menciona a los interesados en un evento."""
+            await self.events_module.handle_mention_command(ctx, evento)
 
     def run(self):
         """Start the bot."""
