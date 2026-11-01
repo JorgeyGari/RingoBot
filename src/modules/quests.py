@@ -42,21 +42,13 @@ class QuestsModule:
         try:
             with self.conn:
                 self.conn.execute(self.CREATE_TABLE_QUESTS)
-                columns = {
-                    row[1] for row in self.conn.execute("PRAGMA table_info(quests)")
-                }
+                columns = {row[1] for row in self.conn.execute("PRAGMA table_info(quests)")}
                 if "status" not in columns:
-                    self.conn.execute(
-                        "ALTER TABLE quests ADD COLUMN status text DEFAULT 'pending'"
-                    )
+                    self.conn.execute("ALTER TABLE quests ADD COLUMN status text DEFAULT 'pending'")
                 if "completed_by" not in columns:
-                    self.conn.execute(
-                        "ALTER TABLE quests ADD COLUMN completed_by text NULL"
-                    )
+                    self.conn.execute("ALTER TABLE quests ADD COLUMN completed_by text NULL")
                 if "completed_at" not in columns:
-                    self.conn.execute(
-                        "ALTER TABLE quests ADD COLUMN completed_at timestamp NULL"
-                    )
+                    self.conn.execute("ALTER TABLE quests ADD COLUMN completed_at timestamp NULL")
             logger.info("Quests table created/verified")
         except sqlite3.Error as e:
             logger.error(f"Error creating table: {e}")
@@ -73,7 +65,9 @@ class QuestsModule:
         """
         try:
             # Check for existing pending request
-            existing_sql = """SELECT * FROM quests WHERE player=? AND description IS NULL AND reward IS NULL"""
+            existing_sql = (
+                """SELECT * FROM quests WHERE player=? AND description IS NULL AND reward IS NULL"""
+            )
             if self.conn.execute(existing_sql, (player,)).fetchone():
                 logger.info(f"Player {player} already has pending quest request")
                 return -1
@@ -141,9 +135,7 @@ class QuestsModule:
                      AND reward IS NOT NULL
                      AND COALESCE(status, 'pending') NOT IN ('completed', 'abandoned')"""
             with self.conn:
-                updated = self.conn.execute(
-                    sql, (completed_by, quest_id, player)
-                ).rowcount
+                updated = self.conn.execute(sql, (completed_by, quest_id, player)).rowcount
             logger.info(f"Quest {quest_id} completed by {player}")
             return updated > 0
         except sqlite3.Error as e:
@@ -205,12 +197,8 @@ class QuestsModule:
                         )
                         await channel.send(embed=embed)
 
-                    await ctx.followup.send(
-                        "Solicitud de misión enviada.", ephemeral=True
-                    )
-                    logger.info(
-                        f"Quest request created for {player} with ID {request_id}"
-                    )
+                    await ctx.followup.send("Solicitud de misión enviada.", ephemeral=True)
+                    logger.info(f"Quest request created for {player} with ID {request_id}")
                 except Exception as e:
                     logger.error(f"Error sending quest request notification: {e}")
                     await ctx.followup.send(
@@ -222,9 +210,7 @@ class QuestsModule:
             logger.error(f"Error in handle_request_command: {e}")
             await ctx.followup.send("Error al procesar la solicitud.", ephemeral=True)
 
-    async def handle_create_command(
-        self, ctx, jugador: str, descripción: str, recompensa: str
-    ):
+    async def handle_create_command(self, ctx, jugador: str, descripción: str, recompensa: str):
         """Handle the quest creation command."""
         try:
             await ctx.defer()
@@ -250,9 +236,7 @@ class QuestsModule:
                             embed = discord.Embed(
                                 title=descripción,
                                 fields=[
-                                    discord.EmbedField(
-                                        name="Recompensa", value=recompensa
-                                    ),
+                                    discord.EmbedField(name="Recompensa", value=recompensa),
                                 ],
                             )
                             embed.set_author(name=f"Misión n.º {request_id}")
@@ -284,9 +268,7 @@ class QuestsModule:
             quest_id = to_int(misión.split(":")[0], -1)
             quest = self.get_active_quest(quest_id, player) if quest_id > 0 else None
             if not quest:
-                await ctx.followup.send(
-                    "No encuentro esa misión entre las tuyas.", ephemeral=True
-                )
+                await ctx.followup.send("No encuentro esa misión entre las tuyas.", ephemeral=True)
                 return
 
             # Get the last message in the channel

@@ -151,9 +151,7 @@ class RingoBot:
             ctx.interaction.user.name
         )
         solicitantes = lambda ctx: self.quests_module.get_users_with_pending_requests()
-        eventos = lambda ctx: self.events_module.get_event_options(
-            ctx.interaction.guild
-        )
+        eventos = lambda ctx: self.events_module.get_event_options(ctx.interaction.guild)
 
         # Dice rolling command
         @self.bot.slash_command()
@@ -176,9 +174,7 @@ class RingoBot:
             name="ytmusic",
             description="Reproduce música de YouTube en tu canal de voz.",
         )
-        @discord.option(
-            "link", description="Enlace del video de YouTube.", required=True
-        )
+        @discord.option("link", description="Enlace del video de YouTube.", required=True)
         async def ytmusic(ctx: discord.ApplicationContext, link: str):
             """Reproduce música de YouTube en tu canal de voz."""
             await self.music_module.play_youtube_music(ctx, self.bot, link)
@@ -218,16 +214,10 @@ class RingoBot:
             await self.wisdom_module.handle_delete_command(ctx)
 
         # Escape room command group
-        escape = self.bot.create_group(
-            "escape", "Comandos para juegos de sala de huida"
-        )
+        escape = self.bot.create_group("escape", "Comandos para juegos de sala de huida")
 
-        @escape.command(
-            name="iniciar", description="Inicia una partida de sala de huida."
-        )
-        @discord.option(
-            "archivo", description="Archivo de sala de huida.", required=True
-        )
+        @escape.command(name="iniciar", description="Inicia una partida de sala de huida.")
+        @discord.option("archivo", description="Archivo de sala de huida.", required=True)
         async def iniciar(ctx: discord.ApplicationContext, archivo: discord.Attachment):
             """Inicia una partida de sala de huida."""
             await self.discape_module.handle_start_command(ctx, archivo)
@@ -257,9 +247,7 @@ class RingoBot:
             """Investiga en la sala de huida."""
             await self.discape_module.handle_investigate_command(ctx, objetivo)
 
-        @escape.command(
-            name="objetos", description="Muestra los objetos de tu inventario."
-        )
+        @escape.command(name="objetos", description="Muestra los objetos de tu inventario.")
         async def objetos(ctx: discord.ApplicationContext):
             """Muestra los objetos de tu inventario."""
             await self.discape_module.handle_inventory_command(ctx)
@@ -292,9 +280,7 @@ class RingoBot:
             """Combina dos objetos."""
             await self.discape_module.handle_combine_command(ctx, objeto1, objeto2)
 
-        @escape.command(
-            name="unirse", description="Unirse a una partida de sala de huida."
-        )
+        @escape.command(name="unirse", description="Unirse a una partida de sala de huida.")
         async def unirse(ctx: discord.ApplicationContext):
             """Unirse a una partida de sala de huida."""
             await self.discape_module.handle_join_command(ctx)
@@ -314,12 +300,8 @@ class RingoBot:
             autocomplete=discord.utils.basic_autocomplete(solicitantes),
             required=True,
         )
-        @discord.option(
-            "descripción", description="Descripción de la misión.", required=True
-        )
-        @discord.option(
-            "recompensa", description="Recompensa de la misión.", required=True
-        )
+        @discord.option("descripción", description="Descripción de la misión.", required=True)
+        @discord.option("recompensa", description="Recompensa de la misión.", required=True)
         async def crear(
             ctx: discord.ApplicationContext,
             jugador: str,
@@ -327,9 +309,7 @@ class RingoBot:
             recompensa: str,
         ):
             """Crea una misión."""
-            await self.quests_module.handle_create_command(
-                ctx, jugador, descripción, recompensa
-            )
+            await self.quests_module.handle_create_command(ctx, jugador, descripción, recompensa)
 
         @mission.command(name="completar", description="Completa una misión.")
         @discord.option(
@@ -343,9 +323,7 @@ class RingoBot:
             await self.quests_module.handle_complete_command(ctx, misión)
 
         # Scheduled events command group
-        event_group = self.bot.create_group(
-            "eventos", "Eventos programados del servidor"
-        )
+        event_group = self.bot.create_group("eventos", "Eventos programados del servidor")
 
         @event_group.command(
             name="mencionar",
@@ -364,9 +342,7 @@ class RingoBot:
             default=None,
             max_length=1500,
         )
-        async def eventos_mencionar(
-            ctx: discord.ApplicationContext, evento: str, mensaje: str
-        ):
+        async def eventos_mencionar(ctx: discord.ApplicationContext, evento: str, mensaje: str):
             """Menciona a los interesados en un evento."""
             await self.events_module.handle_mention_command(ctx, evento, mensaje)
 

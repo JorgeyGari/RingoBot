@@ -61,7 +61,7 @@ class WisdomSelect(Select):
         selected_text = self.wisdom_map[selected_idx]
         if self.module.delete(selected_text, self.user_name):
             await interaction.response.edit_message(
-                content=f'Sabiduría eliminada: «{selected_text}».',
+                content=f"Sabiduría eliminada: «{selected_text}».",
                 view=None,
             )
         else:
@@ -76,9 +76,7 @@ class WisdomDeleteView(View):
 
     def __init__(self, wisdoms: list[dict[str, str]], user_name: str, module: "WisdomModule"):
         super().__init__(timeout=60)
-        owned = [
-            wisdom["text"] for wisdom in wisdoms if wisdom.get("added_by") == user_name
-        ]
+        owned = [wisdom["text"] for wisdom in wisdoms if wisdom.get("added_by") == user_name]
         # A select holds 25 options and a view 5 selects, so 125 wisdoms per menu
         for start in range(0, min(len(owned), 125), 25):
             page = {str(i): owned[i] for i in range(start, min(start + 25, len(owned)))}
@@ -210,20 +208,20 @@ class WisdomModule:
                 user_name = ctx.user.name
                 probability = self.add(sabiduría, user_name)
                 confirmation = (
-                    f'Has registrado la sabiduría n.º {len(self._wisdoms)}:\n'
-                    f'> {sabiduría}\n'
-                    f'-# Probabilidad de aparecer: {probability:.2f} %.'
+                    f"Has registrado la sabiduría n.º {len(self._wisdoms)}:\n"
+                    f"> {sabiduría}\n"
+                    f"-# Probabilidad de aparecer: {probability:.2f} %."
                 )
                 await ctx.respond(confirmation, ephemeral=True)
             else:
                 # User is requesting a random wisdom
                 wisdom = self.get_random()
                 if wisdom:
-                    await ctx.respond(f'{wisdom}')
+                    await ctx.respond(f"{wisdom}")
                 else:
                     await ctx.respond(
                         "Aún no tengo sabiduría que compartir contigo. ¿Tienes alguna para mí?",
-                        ephemeral=True
+                        ephemeral=True,
                     )
         except Exception:
             logger.exception("Error handling wisdom command")
@@ -237,7 +235,7 @@ class WisdomModule:
         try:
             wisdom = self.get_random()
             if wisdom:
-                await message.reply(f'{wisdom}', mention_author=False)
+                await message.reply(f"{wisdom}", mention_author=False)
         except Exception as e:
             logger.error(f"Error handling wisdom message: {e}")
 

@@ -63,9 +63,7 @@ class Config:
     def validate_config(cls) -> None:
         """Check required settings and create required directories."""
         if not cls.TOKEN:
-            raise SystemExit(
-                "Discord bot token (TOKEN) not found in environment variables"
-            )
+            raise SystemExit("Discord bot token (TOKEN) not found in environment variables")
 
         try:
             for path in (cls.DATA_DIR, cls.DOWNLOADS_DIR):

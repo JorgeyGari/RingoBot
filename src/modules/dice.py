@@ -119,9 +119,7 @@ class DiceModule:
 
             # Format response
             response = (
-                f"¡Has tirado {self.human_readable_dice(dados)}!\n"
-                f"`{roll}`\n"
-                f"**Total:** {total_roll}"
+                f"¡Has tirado {self.human_readable_dice(dados)}!\n`{roll}`\n**Total:** {total_roll}"
             )
 
             await ctx.respond(response)
@@ -129,6 +127,4 @@ class DiceModule:
 
         except Exception as e:
             logger.error(f"Error in dice roll: {e}")
-            await ctx.respond(
-                "Error al tirar los dados. Inténtalo de nuevo.", ephemeral=True
-            )
+            await ctx.respond("Error al tirar los dados. Inténtalo de nuevo.", ephemeral=True)

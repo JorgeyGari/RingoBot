@@ -26,12 +26,28 @@ SHIFTS = {
 OFF = {"l", "libre", "descanso", "d", "-", "x"}
 WEEKDAYS = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
 WEEKDAYS_ACCENTED = [
-    "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo",
+    "lunes",
+    "martes",
+    "miércoles",
+    "jueves",
+    "viernes",
+    "sábado",
+    "domingo",
 ]
 MONTHS = {
-    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
-    "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10,
-    "noviembre": 11, "diciembre": 12,
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "diciembre": 12,
 }
 
 _LINE_RE = re.compile(
@@ -231,9 +247,7 @@ def describe(target: date, today: date) -> str:
 
 
 class NiterModule:
-    async def handle_nitercurro_command(
-        self, ctx: discord.ApplicationContext, cuando: str | None
-    ):
+    async def handle_nitercurro_command(self, ctx: discord.ApplicationContext, cuando: str | None):
         tz = ZoneInfo(config.TIMEZONE)
         today = datetime.now(tz).date()
         target = parse_target(cuando, today)
@@ -253,9 +267,7 @@ class NiterModule:
             ) or await ctx.bot.fetch_channel(config.NITER_SCHEDULE_CHANNEL_ID)
             if not isinstance(channel, discord.TextChannel):
                 logger.error("Niter schedule channel is not a text channel")
-                await ctx.respond(
-                    "❌ No he podido leer el horario de Niter.", ephemeral=True
-                )
+                await ctx.respond("❌ No he podido leer el horario de Niter.", ephemeral=True)
                 return
             msg = await channel.fetch_message(config.NITER_SCHEDULE_MESSAGE_ID)
         except discord.HTTPException as e:
@@ -267,9 +279,7 @@ class NiterModule:
         schedule = parse_schedule(msg.content, anchor)
         if schedule is None:
             logger.warning("Could not parse Niter schedule: %r", msg.content)
-            await ctx.respond(
-                "❌ No he podido entender el horario de Niter.", ephemeral=True
-            )
+            await ctx.respond("❌ No he podido entender el horario de Niter.", ephemeral=True)
             return
 
         subject = describe(target, today)

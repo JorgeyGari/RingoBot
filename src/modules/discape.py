@@ -36,9 +36,7 @@ class PaginationView(discord.ui.View):
         await interaction.response.edit_message(embed=self.embeds[self.current])
 
     @discord.ui.button(label="⬅️", style=discord.ButtonStyle.blurple)
-    async def previous_page(
-        self, _: discord.ui.Button, interaction: discord.Interaction
-    ):
+    async def previous_page(self, _: discord.ui.Button, interaction: discord.Interaction):
         """Go to previous page."""
         self.current = (self.current - 1) % len(self.embeds)
         await self.update_page(interaction)
@@ -108,9 +106,7 @@ class DiscapeModule:
 
         try:
             ws = self.wb["Personajes"]
-            player_column_values = self.get_column_values(
-                "Personajes", self.CHAR_USER_COL
-            )
+            player_column_values = self.get_column_values("Personajes", self.CHAR_USER_COL)
             player_row = player_column_values.index(player)
 
             room = _text(ws.cell(row=player_row + 1, column=self.CHAR_ROOM_COL + 1).value)
@@ -128,9 +124,7 @@ class DiscapeModule:
 
         try:
             ws = self.wb["Personajes"]
-            player_column_values = self.get_column_values(
-                "Personajes", self.CHAR_USER_COL
-            )
+            player_column_values = self.get_column_values("Personajes", self.CHAR_USER_COL)
             player_row = player_column_values.index(player)
 
             return _text(ws.cell(row=player_row + 1, column=self.CHAR_HAND_COL + 1).value) or None
@@ -138,18 +132,14 @@ class DiscapeModule:
             logger.error(f"Error getting player hand: {e}")
             return None
 
-    def update_player_location(
-        self, player: str, location: str, path: str | None
-    ) -> None:
+    def update_player_location(self, player: str, location: str, path: str | None) -> None:
         """Update player's location."""
         if not self.wb:
             return
 
         try:
             ws = self.wb["Personajes"]
-            player_row = self.get_column_values("Personajes", self.CHAR_USER_COL).index(
-                player
-            )
+            player_row = self.get_column_values("Personajes", self.CHAR_USER_COL).index(player)
 
             ws.cell(row=player_row + 1, column=self.CHAR_ROOM_COL + 1, value=location)
 
@@ -174,11 +164,7 @@ class DiscapeModule:
             inventory = {}
 
             for row in ws.iter_rows(min_row=2):
-                if (
-                    row[0].value is not None
-                    and row[1].value is not None
-                    and row[2].value == room
-                ):
+                if row[0].value is not None and row[1].value is not None and row[2].value == room:
                     inventory[_text(row[0].value)] = _text(row[1].value)
 
             return inventory
@@ -226,9 +212,7 @@ class DiscapeModule:
 
         try:
             ws = self.wb["Personajes"]
-            player_column_values = self.get_column_values(
-                "Personajes", self.CHAR_USER_COL
-            )
+            player_column_values = self.get_column_values("Personajes", self.CHAR_USER_COL)
 
             # Get the stat column numbers
             stat_col = {}
@@ -260,9 +244,7 @@ class DiscapeModule:
             zones = []
 
             for row in ws:
-                if (
-                    _text(row[2].value) == path and row[4].value is None
-                ):  # depth_col and key_col
+                if _text(row[2].value) == path and row[4].value is None:  # depth_col and key_col
                     zones.append(_text(row[0].value))
 
             return zones
@@ -332,9 +314,7 @@ class DiscapeModule:
             room = self.get_player_location(player)[0]
             if item in self.get_inventory_names(room):
                 ws = self.wb["Personajes"]
-                player_column_values = self.get_column_values(
-                    "Personajes", self.CHAR_USER_COL
-                )
+                player_column_values = self.get_column_values("Personajes", self.CHAR_USER_COL)
                 player_row = player_column_values.index(player)
 
                 ws.cell(row=player_row + 1, column=self.CHAR_HAND_COL + 1, value=item)
@@ -353,9 +333,9 @@ class DiscapeModule:
             return "Error: No se pudo cargar el archivo de datos."
 
         try:
-            if item1 not in self.get_inventory_names(
+            if item1 not in self.get_inventory_names(room) or item2 not in self.get_inventory_names(
                 room
-            ) or item2 not in self.get_inventory_names(room):
+            ):
                 return "No tienes esos objetos."
 
             ws = self.wb["Combinaciones"]
@@ -366,7 +346,6 @@ class DiscapeModule:
                     (row[0].value == item1 and row[1].value == item2)
                     or (row[0].value == item2 and row[1].value == item1)
                 ) and row[4].value == room:
-
                     # Add the resulting item
                     self.add_item([_text(row[2].value), _text(row[3].value), room])
                     # Remove the original items
@@ -413,9 +392,7 @@ class DiscapeModule:
 
             # Process the choice
             for row in ws:
-                if (
-                    _text(row[2].value) == path and row[0].value == choice
-                ):  # depth_col and name_col
+                if _text(row[2].value) == path and row[0].value == choice:  # depth_col and name_col
                     action = _text(row[3].value)
                     if action == "Final":  # path_col
                         return self.escaped(room)
@@ -577,9 +554,7 @@ class DiscapeModule:
             await ctx.defer()
 
             if not archivo.filename.lower().endswith(".xlsx"):
-                await ctx.followup.send(
-                    "El archivo debe ser un .xlsx.", ephemeral=True
-                )
+                await ctx.followup.send("El archivo debe ser un .xlsx.", ephemeral=True)
                 return
 
             # Validate before touching the live file: a bad upload must not
@@ -628,9 +603,7 @@ class DiscapeModule:
             result = roll + bonus
 
             await ctx.followup.send(
-                f"¡Has usado {característica}!\n"
-                f"`[{roll}] + {bonus}`\n"
-                f"**Total:** {result}"
+                f"¡Has usado {característica}!\n`[{roll}] + {bonus}`\n**Total:** {result}"
             )
 
         except Exception as e:
@@ -646,9 +619,7 @@ class DiscapeModule:
             room, _ = self.get_player_location(player)
 
             if not room:
-                await ctx.followup.send(
-                    "No estás en ninguna sala de escape.", ephemeral=True
-                )
+                await ctx.followup.send("No estás en ninguna sala de escape.", ephemeral=True)
                 return
 
             # Use the take_path method to handle the investigation
@@ -668,9 +639,7 @@ class DiscapeModule:
             room, _ = self.get_player_location(player)
 
             if not room:
-                await ctx.followup.send(
-                    "No estás en ninguna sala de escape.", ephemeral=True
-                )
+                await ctx.followup.send("No estás en ninguna sala de escape.", ephemeral=True)
                 return
 
             inventory = self.get_inventory_dict(room)
@@ -716,9 +685,7 @@ class DiscapeModule:
             room, _ = self.get_player_location(player)
 
             if not room:
-                await ctx.followup.send(
-                    "No estás en ninguna sala de escape.", ephemeral=True
-                )
+                await ctx.followup.send("No estás en ninguna sala de escape.", ephemeral=True)
                 return
 
             response = self.combine(objeto1, objeto2, room)

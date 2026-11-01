@@ -72,9 +72,7 @@ class MusicModule:
             await ctx.respond("Descargando y reproduciendo música...", ephemeral=True)
 
             if not self.ffmpeg_path:
-                await ctx.followup.send(
-                    "No se encontró el ejecutable de FFmpeg.", ephemeral=True
-                )
+                await ctx.followup.send("No se encontró el ejecutable de FFmpeg.", ephemeral=True)
                 return
 
             vc = await voice_channel.connect()
@@ -106,9 +104,7 @@ class MusicModule:
             logger.error(f"Error playing music: {e}")
 
             try:
-                await ctx.followup.send(
-                    f"Error al reproducir música: {e}", ephemeral=True
-                )
+                await ctx.followup.send(f"Error al reproducir música: {e}", ephemeral=True)
             except discord.HTTPException:
                 pass
 

@@ -64,16 +64,12 @@ class EventsModule:
             members = await event.subscribers(limit=None, as_member=True).flatten()
         except discord.HTTPException:
             logger.exception("No pude leer los interesados del evento %s", event.id)
-            await ctx.followup.send(
-                "Discord no me deja ver quién está interesado en ese evento."
-            )
+            await ctx.followup.send("Discord no me deja ver quién está interesado en ese evento.")
             return
 
         mentions = [member.mention for member in members if not member.bot]
         if not mentions:
-            await ctx.followup.send(
-                f"Todavía nadie ha marcado interés en **{event.name}**."
-            )
+            await ctx.followup.send(f"Todavía nadie ha marcado interés en **{event.name}**.")
             return
 
         header = f"🔔 **{event.name}** — <t:{to_int(event.start_time.timestamp())}:f>"
@@ -88,9 +84,7 @@ class EventsModule:
         for chunk in chunks:
             await ctx.followup.send(
                 chunk,
-                allowed_mentions=discord.AllowedMentions(
-                    users=True, everyone=False, roles=False
-                ),
+                allowed_mentions=discord.AllowedMentions(users=True, everyone=False, roles=False),
             )
         logger.info(
             "Mencionados %d interesados en el evento %s (%s)",
