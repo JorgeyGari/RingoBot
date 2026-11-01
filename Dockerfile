@@ -12,18 +12,16 @@ RUN apt-get update && apt-get install -y \
 # Copy dependency manifest first to leverage Docker layer caching
 COPY pyproject.toml uv.lock ./
 
-# Install Python dependencies
+# Install Python dependencies at the versions pinned in uv.lock
 RUN pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache -r pyproject.toml
+    uv export --frozen --no-dev --no-hashes -o /tmp/requirements.txt && \
+    uv pip install --system --no-cache -r /tmp/requirements.txt
 
 # Copy source code
 COPY src/ ./src/
 
 # Create necessary directories
 RUN mkdir -p logs data downloads
-
-# Copy data files
-COPY data ./data
 
 # Set environment variables
 ENV PYTHONPATH=/app/src

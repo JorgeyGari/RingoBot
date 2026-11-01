@@ -71,67 +71,47 @@ class MusicModule:
         try:
             await ctx.respond("Descargando y reproduciendo música...", ephemeral=True)
 
-            # Join the voice channel
-            vc = await voice_channel.connect()
-
-            # Download the audio
-            audio_file = self.download_audio(link)
-
-            # Check if FFmpeg is available
             if not self.ffmpeg_path:
-                await ctx.send(
+                await ctx.followup.send(
                     "No se encontró el ejecutable de FFmpeg.", ephemeral=True
                 )
-                await vc.disconnect()
                 return
 
-            # Check if already playing music
-            if vc.is_playing():
-                await ctx.send(
-                    "Ya se está reproduciendo música en este canal.", ephemeral=True
-                )
-                await vc.disconnect()
-                return
+            vc = await voice_channel.connect()
 
-            # Play the audio using FFmpeg
-            vc.play(
-                discord.FFmpegPCMAudio(executable=self.ffmpeg_path, source=audio_file)
-            )
+            # Off the event loop: yt-dlp plus ffmpeg block for seconds
+            audio_file = await asyncio.to_thread(self.download_audio, link)
 
-            # Get the title from filename
             title = os.path.basename(audio_file).replace("_", " ").replace(".mp3", "")
 
-            # Send playing message
-            await ctx.send(f"Reproduciendo: **{title}**")
+            def _finished(error):
+                if error:
+                    logger.error(f"Error de reproducción: {error}")
+                try:
+                    os.remove(audio_file)
+                except OSError:
+                    logger.warning(f"Could not remove audio file: {audio_file}")
+                # Called from the player thread, not the event loop
+                asyncio.run_coroutine_threadsafe(vc.disconnect(), bot.loop)
 
-            # Wait for playback to finish
-            while vc.is_playing():
-                await asyncio.sleep(1)
+            vc.play(
+                discord.FFmpegPCMAudio(executable=self.ffmpeg_path, source=audio_file),
+                after=_finished,
+            )
 
-            # Disconnect and cleanup
-            await vc.disconnect()
-
-            # Clean up the audio file
-            try:
-                os.remove(audio_file)
-            except OSError:
-                logger.warning(f"Could not remove audio file: {audio_file}")
-
-            await ctx.followup.send("¡Reproducción terminada!", ephemeral=True)
-            logger.info(f"Successfully played music: {title}")
+            await ctx.followup.send(f"Reproduciendo: **{title}**")
+            logger.info(f"Started playing music: {title}")
 
         except Exception as e:
             logger.error(f"Error playing music: {e}")
 
-            # Try to send error message (use followup if respond was already called)
             try:
                 await ctx.followup.send(
                     f"Error al reproducir música: {e}", ephemeral=True
                 )
-            except discord.NotFound:
-                # If interaction already responded, try regular send
-                await ctx.send(f"Error al reproducir música: {e}", ephemeral=True)
+            except discord.HTTPException:
+                pass
 
             # Ensure we disconnect on error
-            if ctx.guild.voice_client:
+            if ctx.guild and ctx.guild.voice_client:
                 await ctx.guild.voice_client.disconnect()

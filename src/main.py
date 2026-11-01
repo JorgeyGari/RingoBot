@@ -6,6 +6,7 @@ Main entry point for the application.
 
 import logging
 import os
+from logging.handlers import RotatingFileHandler
 
 from bot.ringobot import RingoBot
 
@@ -19,7 +20,12 @@ def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler("logs/ringobot.log"), logging.StreamHandler()],
+        handlers=[
+            RotatingFileHandler(
+                "logs/ringobot.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+            ),
+            logging.StreamHandler(),
+        ],
     )
 
     RingoBot().run()

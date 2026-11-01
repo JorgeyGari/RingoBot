@@ -41,7 +41,6 @@ class Config:
     DATA_DIR = "data"
     DOWNLOADS_DIR = "downloads"
     DISCAPE_FILE = "data/file.xlsx"
-    PRIZES_FILE = "data/prizes.csv"
     WISDOMS_FILE = "data/wisdoms.json"
 
     # Music Configuration

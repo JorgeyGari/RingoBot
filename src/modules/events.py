@@ -86,7 +86,12 @@ class EventsModule:
         else:
             chunks.insert(0, header)
         for chunk in chunks:
-            await ctx.followup.send(chunk)
+            await ctx.followup.send(
+                chunk,
+                allowed_mentions=discord.AllowedMentions(
+                    users=True, everyone=False, roles=False
+                ),
+            )
         logger.info(
             "Mencionados %d interesados en el evento %s (%s)",
             len(mentions),

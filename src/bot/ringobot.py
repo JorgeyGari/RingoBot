@@ -49,6 +49,9 @@ class RingoBot:
         # In-memory cache for hall of fame messages
         self.hall_of_fame_cache = set()
 
+        # on_ready runs again on every reconnect; sync_commands is rate limited
+        self._synced = False
+
         # Register slash commands
         self._register_commands()
 
@@ -60,12 +63,22 @@ class RingoBot:
         @self.bot.event
         async def on_ready():
             logger.info(f"¡{self.bot.user} se ha conectado!")
-            await self.bot.sync_commands()
-            logger.info("Commands synced with Discord")
+            if not self._synced:
+                await self.bot.sync_commands()
+                self._synced = True
+                logger.info("Commands synced with Discord")
+
+        @self.bot.event
+        async def on_application_command_error(ctx, error):
+            logger.error("Error en /%s: %s", ctx.command, error, exc_info=error)
+            try:
+                await ctx.respond("Algo ha fallado. Avisa a Jorge.", ephemeral=True)
+            except discord.HTTPException:
+                pass
 
         @self.bot.event
         async def on_message(message: discord.Message):
-            if self.bot.user and message.author.id == self.bot.user.id:
+            if message.author.bot:
                 return
 
             logger.info(f"{message.author} en #{message.channel}: {message.content}")
@@ -75,7 +88,10 @@ class RingoBot:
                 msg = message.content[1:]
                 reply = self.replies_module.handle_message(msg)
                 if reply and not reply.startswith("emoji_react:"):
-                    await message.author.send(reply)
+                    try:
+                        await message.author.send(reply)
+                    except discord.Forbidden:
+                        await message.reply(reply)
                 return
 
             # Handle wisdom message trigger
@@ -109,11 +125,13 @@ class RingoBot:
                     logger.warning("Hall of fame channel is not a text channel")
                     return
 
-                # Send to hall of fame
+                # Send to hall of fame (Discord rejects an empty embed)
+                if not reaction.message.content:
+                    return
                 embed = discord.Embed(description=reaction.message.content)
                 embed.set_author(
                     name=reaction.message.author.display_name,
-                    icon_url=reaction.message.author.avatar.url,
+                    icon_url=reaction.message.author.display_avatar.url,
                 )
                 await channel.send(embed=embed)
                 self.hall_of_fame_cache.add(message_id)

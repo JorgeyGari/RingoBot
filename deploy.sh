@@ -15,10 +15,17 @@ push)
     echo "pushed $IMAGE:$TAG"
     ;;
 up)
-    docker compose pull
-    docker compose up -d
+    # jre-server only ships the standalone docker-compose binary
+    if command -v docker-compose >/dev/null 2>&1; then
+        COMPOSE=docker-compose
+    else
+        COMPOSE="docker compose"
+    fi
+    # Deliberate word splitting: "docker compose" is two words
+    $COMPOSE pull
+    $COMPOSE up -d
     docker image prune -f
-    docker compose logs --tail=20 ringobot
+    $COMPOSE logs --tail=20 ringobot
     ;;
 *)
     echo "usage: $0 push|up" >&2

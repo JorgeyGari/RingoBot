@@ -193,6 +193,7 @@ class DiscapeModule:
 
         try:
             ws = self.wb["Personajes"]
+            found = False
 
             for row in ws:
                 if row[self.CHAR_USER_COL].value == player:
@@ -204,7 +205,11 @@ class DiscapeModule:
                         column=self.CHAR_ROOM_COL + 1,
                         value=room,
                     )
+                    found = True
                     break
+
+            if not found:
+                return "No estás en la lista de personajes."
 
             with self.save_lock:
                 self.wb.save(config.DISCAPE_FILE)
@@ -382,7 +387,7 @@ class DiscapeModule:
         try:
             room, path = self.get_player_location(player)
 
-            if room is None:
+            if not room:
                 return "No estás en ninguna sala."
 
             ws = self.wb[room]
@@ -567,13 +572,34 @@ class DiscapeModule:
     # Command handler methods
     async def handle_start_command(self, ctx, archivo):
         """Handle the start escape room command."""
+        tmp_path = f"{config.DISCAPE_FILE}.upload.xlsx"
         try:
             await ctx.defer()
 
-            # Save the uploaded file
-            await archivo.save(config.DISCAPE_FILE)
+            if not archivo.filename.lower().endswith(".xlsx"):
+                await ctx.followup.send(
+                    "El archivo debe ser un .xlsx.", ephemeral=True
+                )
+                return
 
-            # Reload the workbook
+            # Validate before touching the live file: a bad upload must not
+            # destroy the running game.
+            await archivo.save(tmp_path)
+            try:
+                wb = load_workbook(tmp_path)
+                missing = [
+                    sheet
+                    for sheet in ("Personajes", "Inventario", "Combinaciones")
+                    if sheet not in wb.sheetnames
+                ]
+                if missing:
+                    raise ValueError(f"faltan las hojas {', '.join(missing)}")
+            except Exception as e:
+                logger.warning(f"Archivo de escape inválido: {e}")
+                await ctx.followup.send(f"Archivo inválido: {e}", ephemeral=True)
+                return
+
+            os.replace(tmp_path, config.DISCAPE_FILE)
             self._load_workbook()
 
             await ctx.followup.send("Archivo cargado.")
@@ -581,6 +607,12 @@ class DiscapeModule:
         except Exception as e:
             logger.error(f"Error in start command: {e}")
             await ctx.followup.send("Error al cargar el archivo.", ephemeral=True)
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    logger.warning(f"Could not remove upload file: {tmp_path}")
 
     async def handle_stat_roll_command(self, ctx, característica: str):
         """Handle the stat roll command."""

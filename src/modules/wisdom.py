@@ -28,25 +28,29 @@ _WISDOM_TRIGGER = re.compile(r"\bque\s+opinas\b.*\bringobot\b")
 class WisdomSelect(Select):
     """Select menu for deleting wisdoms."""
 
-    def __init__(self, wisdoms: list[dict[str, str]], user_name: str, module: "WisdomModule"):
+    def __init__(
+        self,
+        wisdom_map: dict[str, str],
+        user_name: str,
+        module: "WisdomModule",
+        page: int = 0,
+    ):
         self.module = module
         self.user_name = user_name
-        self.wisdom_map = {}
-        options = []
-        idx = 0
-        for wisdom in wisdoms:
-            if wisdom.get("added_by") == user_name:
-                label = wisdom["text"][:100]
-                value = str(idx)
-                self.wisdom_map[value] = wisdom["text"]
-                options.append(discord.SelectOption(label=label, value=value))
-                idx += 1
+        self.wisdom_map = wisdom_map
 
         super().__init__(
-            placeholder="Elige una sabiduría para eliminar",
+            placeholder=(
+                "Elige una sabiduría para eliminar"
+                if page == 0
+                else f"Sabidurías, página {page + 1}"
+            ),
             min_values=1,
             max_values=1,
-            options=options[:25],
+            options=[
+                discord.SelectOption(label=text[:100], value=key)
+                for key, text in wisdom_map.items()
+            ],
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -68,11 +72,17 @@ class WisdomSelect(Select):
 
 
 class WisdomDeleteView(View):
-    """View containing the wisdom select menu."""
+    """View containing the wisdom select menus."""
 
     def __init__(self, wisdoms: list[dict[str, str]], user_name: str, module: "WisdomModule"):
         super().__init__(timeout=60)
-        self.add_item(WisdomSelect(wisdoms, user_name, module))
+        owned = [
+            wisdom["text"] for wisdom in wisdoms if wisdom.get("added_by") == user_name
+        ]
+        # A select holds 25 options and a view 5 selects, so 125 wisdoms per menu
+        for start in range(0, min(len(owned), 125), 25):
+            page = {str(i): owned[i] for i in range(start, min(start + 25, len(owned)))}
+            self.add_item(WisdomSelect(page, user_name, module, start // 25))
 
 
 class WisdomModule:
@@ -230,3 +240,21 @@ class WisdomModule:
                 await message.reply(f'{wisdom}', mention_author=False)
         except Exception as e:
             logger.error(f"Error handling wisdom message: {e}")
+
+
+if __name__ == "__main__":  # self-check: cd src && python -m modules.wisdom
+    import asyncio
+
+    async def _check():
+        # discord.ui.View needs a running loop
+        mine = [{"text": f"sabiduría {i}", "added_by": "ana"} for i in range(60)]
+        mine += [{"text": "ajena", "added_by": "beto"}]
+        view = WisdomDeleteView(mine, "ana", None)  # pyright: ignore[reportArgumentType]
+        selects = [item for item in view.children if isinstance(item, WisdomSelect)]
+        assert [len(select.options) for select in selects] == [25, 25, 10]
+        assert selects[0].options[0].value == "0"
+        assert selects[2].options[0].value == "50"
+        assert selects[2].wisdom_map["50"] == "sabiduría 50"
+
+    asyncio.run(_check())
+    print("wisdom self-check ok")
