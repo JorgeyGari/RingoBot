@@ -1,17 +1,10 @@
-"""Discord scheduled events: list them and mention everyone marked as interested."""
+"""Discord scheduled events: mention everyone who marked interest in one."""
 
 import logging
 
 import discord
 
 logger = logging.getLogger(__name__)
-
-STATUS_LABELS = {
-    discord.ScheduledEventStatus.scheduled: "",
-    discord.ScheduledEventStatus.active: " · ¡en curso!",
-    discord.ScheduledEventStatus.completed: " · terminado",
-    discord.ScheduledEventStatus.canceled: " · cancelado",
-}
 
 
 class EventsModule:
@@ -49,25 +42,6 @@ class EventsModule:
         if current:
             chunks.append(current)
         return chunks
-
-    async def handle_list_command(self, ctx):
-        """List the guild's scheduled events with their interested counts."""
-        guild = ctx.guild
-        if guild is None:
-            await ctx.respond("Esto solo funciona dentro de un servidor.", ephemeral=True)
-            return
-
-        events = guild.scheduled_events
-        if not events:
-            await ctx.respond("No hay eventos programados en este servidor.")
-            return
-
-        lines = [
-            f"**{event.name}** — <t:{int(event.start_time.timestamp())}:f>"
-            f" · {event.interested or 0} interesad@(s){STATUS_LABELS.get(event.status, '')}"
-            for event in events
-        ]
-        await ctx.respond("\n".join(lines))
 
     async def handle_mention_command(self, ctx, evento: str):
         """Mention every user subscribed (interested) to an event."""

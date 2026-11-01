@@ -129,7 +129,9 @@ class RingoBot:
             ctx.interaction.user.name
         )
         solicitantes = lambda ctx: self.quests_module.get_users_with_pending_requests()
-        eventos = lambda ctx: self.events_module.get_event_options(ctx.guild)
+        eventos = lambda ctx: self.events_module.get_event_options(
+            ctx.interaction.guild
+        )
 
         # Dice rolling command
         @self.bot.slash_command()
@@ -322,14 +324,6 @@ class RingoBot:
         event_group = self.bot.create_group(
             "eventos", "Eventos programados del servidor"
         )
-
-        @event_group.command(
-            name="listar",
-            description="Muestra los eventos programados y cuánta gente está interesada.",
-        )
-        async def eventos_listar(ctx: discord.ApplicationContext):
-            """Lista los eventos programados."""
-            await self.events_module.handle_list_command(ctx)
 
         @event_group.command(
             name="mencionar",
