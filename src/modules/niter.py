@@ -9,8 +9,8 @@ from zoneinfo import ZoneInfo
 
 import discord
 
-from utils.config import config
 from modules.wisdom import _normalize
+from utils.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +195,7 @@ def parse_target(arg: str | None, today: date) -> date | None:
         return _safe_date(y, int(m[2]), int(m[1]))
 
     month = None
+    d = None
     m = re.fullmatch(r"(\d{1,2})[/-](\d{1,2})", s)
     if m:
         d, month = int(m[1]), int(m[2])
@@ -202,7 +203,7 @@ def parse_target(arg: str | None, today: date) -> date | None:
         m = re.fullmatch(r"(\d{1,2})\s+de\s+([a-z]+)", s)
         if m and m[2] in MONTHS:
             d, month = int(m[1]), MONTHS[m[2]]
-    if month is not None:
+    if month is not None and d is not None:
         r = _safe_date(today.year, month, d)
         if r is None:
             return None
@@ -249,6 +250,12 @@ class NiterModule:
             channel = ctx.bot.get_channel(
                 config.NITER_SCHEDULE_CHANNEL_ID
             ) or await ctx.bot.fetch_channel(config.NITER_SCHEDULE_CHANNEL_ID)
+            if not isinstance(channel, discord.TextChannel):
+                logger.error("Niter schedule channel is not a text channel")
+                await ctx.respond(
+                    "❌ No he podido leer el horario de Niter.", ephemeral=True
+                )
+                return
             msg = await channel.fetch_message(config.NITER_SCHEDULE_MESSAGE_ID)
         except discord.HTTPException as e:
             logger.error("Could not fetch Niter schedule message: %s", e)

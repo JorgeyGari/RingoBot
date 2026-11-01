@@ -2,16 +2,33 @@
 Discape module for escape room simulation functionality.
 """
 
-import os
 import logging
+import os
 import threading
-from openpyxl import load_workbook
+
 import discord
-from typing import List, Tuple, Dict, Optional
+from openpyxl import load_workbook
 
 from utils.config import config
 
 logger = logging.getLogger(__name__)
+
+
+def _text(value: object) -> str:
+    """Coerce an openpyxl cell value to str (cells can hold numbers/dates)."""
+    return "" if value is None else str(value)
+
+
+def _number(value: object) -> int:
+    """Coerce an openpyxl cell value to int, defaulting to 0."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    try:
+        return int(str(value))
+    except ValueError:
+        return 0
 
 
 class PaginationView(discord.ui.View):
@@ -71,34 +88,34 @@ class DiscapeModule:
         except Exception as e:
             logger.error(f"Error loading Discape workbook: {e}")
 
-    def get_column_values(self, sheet_name: str, column: int) -> List[str]:
+    def get_column_values(self, sheet_name: str, column: int) -> list[str]:
         """Get all values from a specific column in a sheet."""
         if not self.wb:
             return []
 
         try:
             ws = self.wb[sheet_name]
-            return [row[column].value for row in ws]
+            return [_text(row[column].value) for row in ws]
         except Exception as e:
             logger.error(f"Error getting column values: {e}")
             return []
 
-    def get_row_values(self, sheet_name: str, row: int) -> List[str]:
+    def get_row_values(self, sheet_name: str, row: int) -> list[str]:
         """Get all values from a specific row in a sheet."""
         if not self.wb:
             return []
 
         try:
             ws = self.wb[sheet_name]
-            return [cell.value for cell in ws[row]]
+            return [_text(cell.value) for cell in ws[row]]
         except Exception as e:
             logger.error(f"Error getting row values: {e}")
             return []
 
-    def get_player_location(self, player: str) -> Tuple[str, str]:
+    def get_player_location(self, player: str) -> tuple[str, str]:
         """Get the current location of a player."""
         if not self.wb:
-            return (None, None)
+            return ("", "")
 
         try:
             ws = self.wb["Personajes"]
@@ -107,15 +124,15 @@ class DiscapeModule:
             )
             player_row = player_column_values.index(player)
 
-            room = ws.cell(row=player_row + 1, column=self.CHAR_ROOM_COL + 1).value
-            path = ws.cell(row=player_row + 1, column=self.CHAR_PATH_COL + 1).value
+            room = _text(ws.cell(row=player_row + 1, column=self.CHAR_ROOM_COL + 1).value)
+            path = _text(ws.cell(row=player_row + 1, column=self.CHAR_PATH_COL + 1).value)
 
             return (room, path)
         except Exception as e:
             logger.error(f"Error getting player location: {e}")
-            return (None, None)
+            return ("", "")
 
-    def get_player_hand(self, player: str) -> Optional[str]:
+    def get_player_hand(self, player: str) -> str | None:
         """Get the item in player's hand."""
         if not self.wb:
             return None
@@ -127,13 +144,13 @@ class DiscapeModule:
             )
             player_row = player_column_values.index(player)
 
-            return ws.cell(row=player_row + 1, column=self.CHAR_HAND_COL + 1).value
+            return _text(ws.cell(row=player_row + 1, column=self.CHAR_HAND_COL + 1).value) or None
         except Exception as e:
             logger.error(f"Error getting player hand: {e}")
             return None
 
     def update_player_location(
-        self, player: str, location: str, path: Optional[str]
+        self, player: str, location: str, path: str | None
     ) -> None:
         """Update player's location."""
         if not self.wb:
@@ -158,7 +175,7 @@ class DiscapeModule:
         except Exception as e:
             logger.error(f"Error updating player location: {e}")
 
-    def get_inventory_dict(self, room: str) -> Dict[str, str]:
+    def get_inventory_dict(self, room: str) -> dict[str, str]:
         """Get inventory items for a room as a dictionary."""
         if not self.wb:
             return {}
@@ -173,7 +190,7 @@ class DiscapeModule:
                     and row[1].value is not None
                     and row[2].value == room
                 ):
-                    inventory[row[0].value] = row[1].value
+                    inventory[_text(row[0].value)] = _text(row[1].value)
 
             return inventory
         except Exception as e:
@@ -190,8 +207,11 @@ class DiscapeModule:
 
             for row in ws:
                 if row[self.CHAR_USER_COL].value == player:
+                    target_row = row[self.CHAR_NAME_COL].row
+                    if target_row is None:
+                        break
                     ws.cell(
-                        row=row[self.CHAR_NAME_COL].row,
+                        row=target_row,
                         column=self.CHAR_ROOM_COL + 1,
                         value=room,
                     )
@@ -227,12 +247,12 @@ class DiscapeModule:
                 return 0
 
             player_row = player_column_values.index(player) + 1
-            return ws.cell(row=player_row, column=stat_col[stat]).value or 0
+            return _number(ws.cell(row=player_row, column=stat_col[stat]).value)
         except Exception as e:
             logger.error(f"Error getting stat: {e}")
             return 0
 
-    def get_zones(self, player: str) -> List[str]:
+    def get_zones(self, player: str) -> list[str]:
         """Get list of available zones for a player."""
         if not self.wb:
             return []
@@ -247,16 +267,16 @@ class DiscapeModule:
 
             for row in ws:
                 if (
-                    row[2].value == path and row[4].value is None
+                    _text(row[2].value) == path and row[4].value is None
                 ):  # depth_col and key_col
-                    zones.append(row[0].value)
+                    zones.append(_text(row[0].value))
 
             return zones
         except Exception as e:
             logger.error(f"Error getting zones: {e}")
             return []
 
-    def get_inventory_names(self, room: str) -> List[str]:
+    def get_inventory_names(self, room: str) -> list[str]:
         """Get list of item names in a room's inventory."""
         if not self.wb:
             return []
@@ -267,14 +287,14 @@ class DiscapeModule:
 
             for row in ws:
                 if row[2].value == room and row[0].value:
-                    inventory.append(row[0].value)
+                    inventory.append(_text(row[0].value))
 
             return inventory
         except Exception as e:
             logger.error(f"Error getting inventory names: {e}")
             return []
 
-    def add_item(self, new_data: List[str], save: bool = True) -> None:
+    def add_item(self, new_data: list[str], save: bool = True) -> None:
         """Add a new item to the inventory, saving unless the caller batches."""
         if not self.wb:
             return
@@ -299,7 +319,10 @@ class DiscapeModule:
             ws = self.wb["Inventario"]
             for row in ws:
                 if row[0].value == item and row[2].value == room:
-                    ws.delete_rows(row[0].row)
+                    target_row = row[0].row
+                    if target_row is None:
+                        break
+                    ws.delete_rows(target_row)
                     break
             with self.save_lock:
                 self.wb.save(config.DISCAPE_FILE)
@@ -351,7 +374,7 @@ class DiscapeModule:
                 ) and row[4].value == room:
 
                     # Add the resulting item
-                    self.add_item([row[2].value, row[3].value, room])
+                    self.add_item([_text(row[2].value), _text(row[3].value), room])
                     # Remove the original items
                     self.remove_item(item1, room)
                     self.remove_item(item2, room)
@@ -397,26 +420,27 @@ class DiscapeModule:
             # Process the choice
             for row in ws:
                 if (
-                    row[2].value == path and row[0].value == choice
+                    _text(row[2].value) == path and row[0].value == choice
                 ):  # depth_col and name_col
-                    if row[3].value == "Final":  # path_col
+                    action = _text(row[3].value)
+                    if action == "Final":  # path_col
                         return self.escaped(room)
-                    elif row[3].value == "Objeto":
+                    elif action == "Objeto":
                         return self.unlock_item(room, choice)
-                    elif row[3].value and row[3].value.startswith("Puzle"):
-                        puzzle_name = row[3].value.split(" ")[1]
+                    elif action.startswith("Puzle"):
+                        puzzle_name = action.split(" ")[1]
                         return f"Puzzle: {puzzle_name} (not implemented yet)"
                     else:
                         # Navigate to new location
-                        if path and row[3].value:
-                            new_path = path + row[3].value
-                        elif row[3].value:
-                            new_path = row[3].value
+                        if path and action:
+                            new_path = path + action
+                        elif action:
+                            new_path = action
                         else:
                             new_path = path
 
                         self.update_player_location(player, room, new_path)
-                        return row[1].value  # description
+                        return _text(row[1].value)  # description
 
             return "No puedes ir por ahí."
         except Exception as e:
@@ -434,7 +458,7 @@ class DiscapeModule:
 
             for row in ws:
                 if row[0].value == choice:  # name_col
-                    return row[3].value or ""  # path_col
+                    return _text(row[3].value)  # path_col
             return ""
         except Exception as e:
             logger.error(f"Error getting path from choice: {e}")
@@ -451,7 +475,7 @@ class DiscapeModule:
 
             for row in ws:
                 if row[2].value == path:  # depth_col
-                    return row[4].value or ""  # key_col
+                    return _text(row[4].value)  # key_col
             return ""
         except Exception as e:
             logger.error(f"Error getting key from path: {e}")
@@ -467,16 +491,14 @@ class DiscapeModule:
             ws = self.wb[room]
 
             for row in ws:
-                before = row[2].value[:-1] if row[2].value else None  # depth_col
-                if before == "":
-                    before = None
+                before = _text(row[2].value)[:-1] or None  # depth_col
 
                 if row[4].value == item and path == before:  # key_col
                     row[4].value = None
-                    self.update_player_location(player, room, row[2].value)
+                    self.update_player_location(player, room, _text(row[2].value))
                     with self.save_lock:
                         self.wb.save(config.DISCAPE_FILE)
-                    return row[5].value or ""  # action_col
+                    return _text(row[5].value)  # action_col
             return ""
         except Exception as e:
             logger.error(f"Error unlocking zone: {e}")
@@ -491,8 +513,11 @@ class DiscapeModule:
             ws = self.wb[room]
             for row in ws:
                 if row[0].value == item:  # name_col
-                    self.add_item([item, row[1].value, room], save=False)
-                    ws.delete_rows(row[0].row)
+                    self.add_item([item, _text(row[1].value), room], save=False)
+                    target_row = row[0].row
+                    if target_row is None:
+                        break
+                    ws.delete_rows(target_row)
                     with self.save_lock:
                         self.wb.save(config.DISCAPE_FILE)
                     return f"Has obtenido un nuevo objeto: {item}."
@@ -510,9 +535,10 @@ class DiscapeModule:
             ws = self.wb["Personajes"]
             for row in ws:
                 if row[self.CHAR_ROOM_COL].value == room:
-                    ws.cell(
-                        row=row[self.CHAR_NAME_COL].row, column=self.CHAR_ROOM_COL + 1
-                    ).value = None
+                    target_row = row[self.CHAR_NAME_COL].row
+                    if target_row is None:
+                        continue
+                    ws.cell(row=target_row, column=self.CHAR_ROOM_COL + 1).value = None
 
             with self.save_lock:
                 self.wb.save(config.DISCAPE_FILE)
@@ -521,7 +547,7 @@ class DiscapeModule:
             logger.error(f"Error handling escape: {e}")
             return "Error al escapar."
 
-    def get_investigation_options(self, player: str) -> List[str]:
+    def get_investigation_options(self, player: str) -> list[str]:
         """Get available investigation options for a player."""
         try:
             room, path = self.get_player_location(player)
@@ -537,7 +563,7 @@ class DiscapeModule:
             logger.error(f"Error getting investigation options: {e}")
             return []
 
-    def get_equipable_items_for_player(self, player: str) -> List[str]:
+    def get_equipable_items_for_player(self, player: str) -> list[str]:
         """Get list of items that a player can equip."""
         try:
             room, _ = self.get_player_location(player)
@@ -596,7 +622,7 @@ class DiscapeModule:
             await ctx.defer()
 
             player = ctx.user.name
-            room, path = self.get_player_location(player)
+            room, _ = self.get_player_location(player)
 
             if not room:
                 await ctx.followup.send(

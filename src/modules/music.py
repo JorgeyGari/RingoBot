@@ -2,12 +2,13 @@
 Music module for YouTube music playback functionality.
 """
 
-import os
-import shutil
-import yt_dlp
-import discord
 import asyncio
 import logging
+import os
+import shutil
+
+import discord
+import yt_dlp
 
 from utils.config import config
 
@@ -38,7 +39,8 @@ class MusicModule:
         Raises:
             yt_dlp.DownloadError: If download fails
         """
-        with yt_dlp.YoutubeDL(config.YTDL_OPTS) as ydl:
+        # yt-dlp types its params as a private TypedDict; a plain dict works.
+        with yt_dlp.YoutubeDL(config.YTDL_OPTS) as ydl:  # pyright: ignore[reportArgumentType]
             info = ydl.extract_info(link, download=True)
             filename = ydl.prepare_filename(info)
             # Replace extension with .mp3

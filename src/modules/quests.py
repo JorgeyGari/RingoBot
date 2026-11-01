@@ -2,9 +2,8 @@
 Quests module for quest management functionality.
 """
 
-import sqlite3
 import logging
-from typing import List, Tuple, Optional
+import sqlite3
 
 from utils.config import config
 
@@ -63,13 +62,13 @@ class QuestsModule:
                 quest_id = self.conn.execute(sql, (player, None, None)).lastrowid
 
             logger.info(f"Created quest request {quest_id} for player {player}")
-            return quest_id
+            return quest_id or -1
 
         except sqlite3.Error as e:
             logger.error(f"Error creating quest request: {e}")
             return -1
 
-    def get_users_with_pending_requests(self) -> List[str]:
+    def get_users_with_pending_requests(self) -> list[str]:
         """Get list of users with pending quest requests."""
         try:
             sql = """SELECT player FROM quests WHERE description IS NULL AND reward IS NULL"""
@@ -78,7 +77,7 @@ class QuestsModule:
             logger.error(f"Error getting pending requests: {e}")
             return []
 
-    def get_user_request_id(self, player: str) -> Optional[int]:
+    def get_user_request_id(self, player: str) -> int | None:
         """Get the quest request ID for a player."""
         try:
             sql = """SELECT id FROM quests WHERE player=? AND description IS NULL AND reward IS NULL"""
@@ -88,7 +87,7 @@ class QuestsModule:
             logger.error(f"Error getting user request ID: {e}")
             return None
 
-    def get_user_active_quests(self, player: str) -> List[Tuple]:
+    def get_user_active_quests(self, player: str) -> list[tuple]:
         """Get active quests for a player."""
         try:
             sql = """SELECT * FROM quests WHERE player=? AND description IS NOT NULL AND reward IS NOT NULL"""
@@ -267,7 +266,7 @@ class QuestsModule:
             logger.error(f"Error in handle_complete_command: {e}")
             await ctx.followup.send("Error al completar la misión.", ephemeral=True)
 
-    def get_quest_options_for_player(self, player: str) -> List[str]:
+    def get_quest_options_for_player(self, player: str) -> list[str]:
         """Get quest options for autocomplete."""
         try:
             records = self.get_user_active_quests(player)

@@ -2,18 +2,19 @@
 Main RingoBot class that manages the Discord bot and its modules.
 """
 
-import discord
 import logging
 
-from utils.config import config
-from modules.replies import RepliesModule
+import discord
+
 from modules.dice import DiceModule
-from modules.music import MusicModule
 from modules.discape import DiscapeModule
-from modules.quests import QuestsModule
-from modules.wisdom import WisdomModule, _normalize, _WISDOM_TRIGGER
-from modules.niter import NiterModule
 from modules.events import EventsModule
+from modules.music import MusicModule
+from modules.niter import NiterModule
+from modules.quests import QuestsModule
+from modules.replies import RepliesModule
+from modules.wisdom import _WISDOM_TRIGGER, WisdomModule, _normalize
+from utils.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ class RingoBot:
 
         @self.bot.event
         async def on_message(message: discord.Message):
-            if message.author.id == self.bot.user.id:
+            if self.bot.user and message.author.id == self.bot.user.id:
                 return
 
             logger.info(f"{message.author} en #{message.channel}: {message.content}")
@@ -84,35 +85,38 @@ class RingoBot:
 
             # Handle regular message replies
             reply = self.replies_module.handle_message(message.content)
-            if reply:
-                # Check if reply is an emoji reaction
-                if reply.startswith("emoji_react:"):
-                    emoji_name = reply[12:]  # Remove "emoji_react:" prefix
-                    emoji_map = {"waving_hand": "👋"}
-                    emoji = emoji_map.get(emoji_name, emoji_name)
-                    await message.add_reaction(emoji)
-                else:
-                    await message.reply(reply, mention_author=True)
+            # Check if reply is an emoji reaction
+            if reply and reply.startswith("emoji_react:"):
+                emoji_name = reply[12:]  # Remove "emoji_react:" prefix
+                emoji_map = {"waving_hand": "👋"}
+                emoji = emoji_map.get(emoji_name, emoji_name)
+                await message.add_reaction(emoji)
+            elif reply:
+                await message.reply(reply, mention_author=True)
 
         @self.bot.event
         async def on_reaction_add(reaction, user):
-            if reaction.emoji == config.STAR_EMOJI and not user.bot:
-                if reaction.count >= config.REQUIRED_STARS:
-                    channel = self.bot.get_channel(config.HALL_OF_FAME_CHANNEL_ID)
-                    message_id = reaction.message.id
+            if (
+                reaction.emoji == config.STAR_EMOJI and not user.bot
+            ) and reaction.count >= config.REQUIRED_STARS:
+                channel = self.bot.get_channel(config.HALL_OF_FAME_CHANNEL_ID)
+                message_id = reaction.message.id
 
-                    # Check if message is already in hall of fame using cache
-                    if message_id in self.hall_of_fame_cache:
-                        return
+                # Check if message is already in hall of fame using cache
+                if message_id in self.hall_of_fame_cache:
+                    return
+                if not isinstance(channel, discord.TextChannel):
+                    logger.warning("Hall of fame channel is not a text channel")
+                    return
 
-                    # Send to hall of fame
-                    embed = discord.Embed(description=reaction.message.content)
-                    embed.set_author(
-                        name=reaction.message.author.display_name,
-                        icon_url=reaction.message.author.avatar.url,
-                    )
-                    await channel.send(embed=embed)
-                    self.hall_of_fame_cache.add(message_id)
+                # Send to hall of fame
+                embed = discord.Embed(description=reaction.message.content)
+                embed.set_author(
+                    name=reaction.message.author.display_name,
+                    icon_url=reaction.message.author.avatar.url,
+                )
+                await channel.send(embed=embed)
+                self.hall_of_fame_cache.add(message_id)
 
     def _register_commands(self):
         """Register slash commands."""

@@ -4,6 +4,8 @@ Centralizes all configuration values and environment variables.
 """
 
 import os
+from typing import ClassVar
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -15,7 +17,7 @@ class Config:
 
     # Discord Bot Configuration
     TOKEN = os.getenv("TOKEN")
-    DEBUG_GUILDS = [429400823395647489, 948015933434253372]
+    DEBUG_GUILDS: ClassVar[list[int]] = [429400823395647489, 948015933434253372]
 
     # Hall of Fame Configuration
     HALL_OF_FAME_CHANNEL_ID = 1273250919110152258
@@ -24,7 +26,7 @@ class Config:
 
     # Quest Configuration
     QUEST_REQUESTS_CHANNEL_ID = 1275940735266328648
-    QUEST_CHANNEL_ID_DICT = {"jorgeygari": 1059245948590633123}
+    QUEST_CHANNEL_ID_DICT: ClassVar[dict[str, int]] = {"jorgeygari": 1059245948590633123}
     COMPLETED_QUESTS_CHANNEL_ID = 1276207418128207922
 
     # Niter schedule
@@ -43,7 +45,7 @@ class Config:
     WISDOMS_FILE = "data/wisdoms.json"
 
     # Music Configuration
-    YTDL_OPTS = {
+    YTDL_OPTS: ClassVar[dict] = {
         "format": "bestaudio/best",
         "outtmpl": f"{DOWNLOADS_DIR}/%(title)s.%(ext)s",
         "postprocessors": [

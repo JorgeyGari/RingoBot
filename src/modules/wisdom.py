@@ -5,13 +5,13 @@ Wisdom module for handling wisdom quotes and user submissions.
 import json
 import logging
 import random
-import unicodedata
 import re
-from pathlib import Path
-from typing import Optional, List, Dict
+import unicodedata
 from datetime import datetime
+from pathlib import Path
+
 import discord
-from discord.ui import View, Select
+from discord.ui import Select, View
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ _WISDOM_TRIGGER = re.compile(r"\bque\s+opinas\b.*\bringobot\b")
 class WisdomSelect(Select):
     """Select menu for deleting wisdoms."""
 
-    def __init__(self, wisdoms: List[Dict[str, str]], user_name: str, module: "WisdomModule"):
+    def __init__(self, wisdoms: list[dict[str, str]], user_name: str, module: "WisdomModule"):
         self.module = module
         self.user_name = user_name
         self.wisdom_map = {}
@@ -51,6 +51,8 @@ class WisdomSelect(Select):
 
     async def callback(self, interaction: discord.Interaction):
         """Handle wisdom deletion."""
+        if not self.values:
+            return
         selected_idx = self.values[0]
         selected_text = self.wisdom_map[selected_idx]
         if self.module.delete(selected_text, self.user_name):
@@ -68,7 +70,7 @@ class WisdomSelect(Select):
 class WisdomDeleteView(View):
     """View containing the wisdom select menu."""
 
-    def __init__(self, wisdoms: List[Dict[str, str]], user_name: str, module: "WisdomModule"):
+    def __init__(self, wisdoms: list[dict[str, str]], user_name: str, module: "WisdomModule"):
         super().__init__(timeout=60)
         self.add_item(WisdomSelect(wisdoms, user_name, module))
 
@@ -79,7 +81,7 @@ class WisdomModule:
     def __init__(self, path: str):
         """Initialize the wisdom module and load existing wisdoms."""
         self._path = Path(path)
-        self._wisdoms: List[Dict[str, str]] = []
+        self._wisdoms: list[dict[str, str]] = []
         try:
             if self._path.exists():
                 self._wisdoms = json.loads(self._path.read_text(encoding="utf-8"))
@@ -92,11 +94,11 @@ class WisdomModule:
         try:
             with open(self._path, "w", encoding="utf-8") as f:
                 json.dump(self._wisdoms, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            logger.error(f"Error saving wisdoms to JSON: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error saving wisdoms to JSON")
             raise
 
-    def _weights(self) -> List[int]:
+    def _weights(self) -> list[int]:
         """Selection weight per wisdom: seconds since last shown, unseen ones favoured."""
         weights = []
         for wisdom in self._wisdoms:
@@ -130,7 +132,7 @@ class WisdomModule:
         weights = self._weights()
         return (weights[target_idx] / sum(weights)) * 100.0
 
-    def get_random(self) -> Optional[str]:
+    def get_random(self) -> str | None:
         """Get a weighted random wisdom, preferring ones not recently shown."""
         if not self._wisdoms:
             return None
@@ -183,14 +185,14 @@ class WisdomModule:
                 view=view,
                 ephemeral=True,
             )
-        except Exception as e:
-            logger.error(f"Error handling delete command: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error handling delete command")
             await ctx.respond(
                 "Error al procesar tu solicitud. Inténtalo de nuevo.",
                 ephemeral=True,
             )
 
-    async def handle_wisdom_command(self, ctx: discord.ApplicationContext, sabiduría: Optional[str]):
+    async def handle_wisdom_command(self, ctx: discord.ApplicationContext, sabiduría: str | None):
         """Handle the /sabiduria slash command."""
         try:
             if sabiduría:
@@ -213,8 +215,8 @@ class WisdomModule:
                         "Aún no tengo sabiduría que compartir contigo. ¿Tienes alguna para mí?",
                         ephemeral=True
                     )
-        except Exception as e:
-            logger.error(f"Error handling wisdom command: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error handling wisdom command")
             await ctx.respond(
                 "Error al procesar tu sabiduría. Inténtalo de nuevo.",
                 ephemeral=True,

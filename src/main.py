@@ -4,8 +4,8 @@ RingoBot - Discord Bot for RINGOS 2.0
 Main entry point for the application.
 """
 
-import os
 import logging
+import os
 
 from bot.ringobot import RingoBot
 

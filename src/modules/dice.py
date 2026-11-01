@@ -2,10 +2,9 @@
 Dice rolling module for RPG dice functionality.
 """
 
-import random
 import logging
+import random
 import re
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 class DiceModule:
     """Handles dice rolling functionality."""
 
-    def validate_dice(self, dice: str) -> Optional[str]:
+    def validate_dice(self, dice: str) -> str | None:
         """
         Validate dice input format.
 
@@ -91,7 +90,10 @@ class DiceModule:
             Total sum
         """
         fate_values = {"-": -1, "·": 0, "+": 1}
-        return sum(fate_values.get(die, die) for die in roll)
+        total = 0
+        for die in roll:
+            total += fate_values[die] if die in fate_values else int(die)
+        return total
 
     async def handle_roll_command(self, ctx, dados: str, modificador: int):
         """

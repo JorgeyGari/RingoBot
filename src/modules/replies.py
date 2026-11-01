@@ -2,9 +2,8 @@
 Replies module for handling automatic message responses.
 """
 
-import random
 import logging
-from typing import Optional
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ class RepliesModule:
 
     LUC_USER_ID = "<@527911869550428168>"
 
-    def handle_message(self, message: str) -> Optional[str]:
+    def handle_message(self, message: str) -> str | None:
         """
         Process a message and return an appropriate reply if applicable.
 
@@ -27,9 +26,8 @@ class RepliesModule:
         p_message = message.lower()
 
         # Greeting
-        if p_message.startswith("hola"):
-            if random.randint(1, 6) == 6:
-                return "¡Hola!"
+        if p_message.startswith("hola") and random.randint(1, 6) == 6:
+            return "¡Hola!"
 
         # Help command
         if p_message.startswith("!ayuda"):
@@ -44,9 +42,8 @@ class RepliesModule:
             )
 
         # Fun response to numbers ending in 5
-        if p_message.endswith("5") or p_message.endswith("cinco"):
-            if random.randint(1, 6) == 5:
-                return "Por el culo te la hinco."
+        if p_message.endswith(("5", "cinco")) and random.randint(1, 6) == 5:
+            return "Por el culo te la hinco."
 
         # Insult command
         if p_message.startswith("!insulta"):
