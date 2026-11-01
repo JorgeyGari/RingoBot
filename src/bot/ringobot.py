@@ -335,9 +335,18 @@ class RingoBot:
             autocomplete=discord.utils.basic_autocomplete(eventos),
             required=True,
         )
-        async def eventos_mencionar(ctx: discord.ApplicationContext, evento: str):
+        @discord.option(
+            "mensaje",
+            description="Texto a añadir junto a la mención.",
+            required=False,
+            default=None,
+            max_length=1500,
+        )
+        async def eventos_mencionar(
+            ctx: discord.ApplicationContext, evento: str, mensaje: str
+        ):
             """Menciona a los interesados en un evento."""
-            await self.events_module.handle_mention_command(ctx, evento)
+            await self.events_module.handle_mention_command(ctx, evento, mensaje)
 
     def run(self):
         """Start the bot."""

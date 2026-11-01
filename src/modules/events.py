@@ -43,7 +43,7 @@ class EventsModule:
             chunks.append(current)
         return chunks
 
-    async def handle_mention_command(self, ctx, evento: str):
+    async def handle_mention_command(self, ctx, evento: str, mensaje: str | None = None):
         """Mention every user subscribed (interested) to an event."""
         guild = ctx.guild
         if guild is None:
@@ -82,11 +82,15 @@ class EventsModule:
             )
             return
 
-        header = (
-            f"🔔 **{event.name}** — <t:{int(event.start_time.timestamp())}:f>\n"
-        )
+        header = f"🔔 **{event.name}** — <t:{int(event.start_time.timestamp())}:f>"
+        if mensaje:
+            header += f"\n{mensaje}"
+        header += "\n"
         chunks = self._chunk_mentions(mentions)
-        chunks[0] = header + chunks[0]
+        if len(header) + len(chunks[0]) <= 1900:
+            chunks[0] = header + chunks[0]
+        else:
+            chunks.insert(0, header)
         for chunk in chunks:
             await ctx.followup.send(chunk)
         logger.info(
