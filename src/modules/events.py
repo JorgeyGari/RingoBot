@@ -59,7 +59,7 @@ class EventsModule:
             )
             return
 
-        await ctx.defer()
+        await ctx.defer(ephemeral=True)  # placeholder is private; pings go out as fresh messages
         try:
             members = await event.subscribers(limit=None, as_member=True).flatten()
         except discord.HTTPException:
@@ -72,7 +72,7 @@ class EventsModule:
             await ctx.followup.send(f"Todavía nadie ha marcado interés en **{event.name}**.")
             return
 
-        header = f"🔔 **{event.name}** — <t:{to_int(event.start_time.timestamp())}:f>"
+        header = f"🔔 **{event.name}** — <t:{to_int(event.start_time.timestamp())}:f> (pedido por {ctx.author.mention})"
         if mensaje:
             header += f"\n{mensaje}"
         header += "\n"
@@ -81,11 +81,10 @@ class EventsModule:
             chunks[0] = header + chunks[0]
         else:
             chunks.insert(0, header)
+        allowed = discord.AllowedMentions(users=True, everyone=False, roles=False)
         for chunk in chunks:
-            await ctx.followup.send(
-                chunk,
-                allowed_mentions=discord.AllowedMentions(users=True, everyone=False, roles=False),
-            )
+            await ctx.channel.send(chunk, allowed_mentions=allowed)
+        await ctx.followup.send(f"He avisado a las personas interesadas en **{event.name}**.")
         logger.info(
             "Mencionados %d interesados en el evento %s (%s)",
             len(mentions),
